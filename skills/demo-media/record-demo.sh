@@ -233,6 +233,12 @@ step() {
   sleep "$PAUSE_AFTER"
 }
 
+# Provided to the steps file: a section heading to group related steps.
+group() {
+  printf '\n\n%s═══ %s ═══%s\n' "$bold$cyan" "$1" "$reset"
+  sleep "$PAUSE_BEFORE"
+}
+
 # Load the steps file (it sets DEMO_TITLE + defines demo()), then run it paced.
 run_demo() {
   if [ -z "$STEPS" ]; then

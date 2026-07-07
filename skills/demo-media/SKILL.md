@@ -55,8 +55,9 @@ demo() {
 }
 ```
 
-- `step`, the pauses, and the heading colors are provided by the recorder — don't redefine them.
+- `step`, `group`, the pauses, and the heading colors are provided by the recorder — don't redefine them.
 - Optional 3rd arg colors the heading: `$c_red`, `$c_green`, `$c_orange` (default green).
+- `group "<title>"` prints a section heading to group related steps.
 - The command runs under `eval` (pipes/quotes/jq work); a non-zero exit (e.g. an
   intentional error demo) is tolerated, not fatal.
 - If `--steps` is omitted, `./demo-steps.sh` then `./demo/steps.sh` are auto-detected.

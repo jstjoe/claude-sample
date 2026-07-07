@@ -24,6 +24,8 @@ DEMO_TITLE="My Service — quick tour"
 HOST="${HOST:-localhost:8080}"
 
 demo() {
+  group "Basics"                 # optional section heading to group related steps
+
   step "1/3  Health check" \
     "curl -s $HOST/healthz | jq ."
 

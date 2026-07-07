@@ -6,16 +6,58 @@ description: >
   or shareable MP4, trim/crop/speed-up a video, batch-resize or convert
   screenshots, annotate images (arrows, boxes, callouts), redact/blur sensitive
   regions (PII, tokens, secrets) in demo assets, or build a repeatable
-  recording/screenshotting pipeline. Triggers on: "screen recording", "make a
-  GIF", "record a demo", "screenshot workflow", "compress video", "trim clip",
-  "crop recording", "annotate screenshot", "redact/blur screenshot", "ffmpeg",
-  "imagemagick", "magick".
+  recording/screenshotting pipeline. Ships a turnkey macOS recorder
+  (record-demo.sh) that screen-records, drives a scripted demo, and emits a
+  timestamped MP4 + GIF. Triggers on: "screen recording", "record a demo",
+  "self-driving demo", "record-demo.sh", "make a GIF", "screenshot workflow",
+  "compress video", "trim clip", "crop recording", "annotate screenshot",
+  "redact/blur screenshot", "ffmpeg", "imagemagick", "magick".
 ---
 
 # Demo Media: ffmpeg + ImageMagick
 
 Recipes for producing demo videos and screenshots. Tuned for developer
 demos: terminal captures, UI walkthroughs, docs assets, Slack/PR shares.
+
+## Turnkey recorder: `record-demo.sh`
+
+This skill ships a macOS recorder — `record-demo.sh`, in this skill's directory.
+It screen-records, runs a scripted sequence of demo commands *on camera*, stops,
+and writes a timestamped, editable **MP4** (real-time — add a talk track later)
+plus a snappy **GIF** (sped up — for inline docs/Slack). One command, walk away.
+
+```bash
+./record-demo.sh                          # pick screen (prompts if >1), full screen, no audio
+./record-demo.sh --audio --tag v1         # + built-in mic, labeled take
+./record-demo.sh --list                   # list screens + audio devices, exit
+./record-demo.sh --area 1400:900:40:120   # crop to a region (w:h:x:y)
+./record-demo.sh --no-record              # rehearse the commands, no recording
+./record-demo.sh --reuse demo-out/<stamp>.raw.mov   # re-crop / re-speed a capture, no re-record
+```
+
+Design decisions worth keeping (each fixed a real failure):
+
+- **Screen chosen by name, not index.** avfoundation reorders indices when a
+  camera/mic is (un)plugged, so a hardcoded index silently records the wrong
+  device (e.g. your webcam). Prompts when more than one screen is present;
+  `--screen N` / `--screen-name "Capture screen 1"` to force.
+- **Audio OFF by default.** Capture is video-only (`:none`). Opt in with
+  `--audio` (auto-picks the built-in mic) or `--audio-device NAME|INDEX`. The MP4
+  keeps audio only when the raw actually has a track; the GIF never does.
+- **Unique timestamped output** into `demo-out/<stamp>[-tag].{raw.mov,mp4,gif}` —
+  never overwrites a prior take. The raw is always full-screen, so `--reuse` lets
+  you re-crop / re-speed without re-recording.
+- First capture triggers a macOS **Screen Recording** permission prompt for your
+  terminal app — grant it (System Settings › Privacy & Security), then re-run.
+
+**Per-project bit:** the demo it runs lives in the `run_demo()` function (a
+labeled, paced sequence of `curl`s) plus `HOST_*` / `PAYLOAD` at the top. Edit
+those for a new project; everything else — capture, screen selection, audio,
+trimming, the MP4+GIF pipeline — is generic and reusable. `--no-record` runs the
+commands without recording so you can rehearse pacing first.
+
+The sections below are the underlying ffmpeg/ImageMagick recipes the script is
+built from — reach for them directly for one-off edits or non-recording tasks.
 
 ## Tooling notes
 
@@ -110,7 +152,8 @@ magick shot.png -trim +repage -strip -bordercolor white -border 20 clean.png
 ## Pipeline recipes worth scripting
 
 - **Auto-GIF**: record → trim → speed 2× → 2-pass palette GIF, as one shell
-  function that takes a `.mov` and emits a `.gif`.
+  function that takes a `.mov` and emits a `.gif`. (Realized end-to-end by
+  `record-demo.sh` above — read it for a worked example of chaining these.)
 - **Screenshot lint**: `magick mogrify` over a dir → resize + `-strip` + `-trim`,
   run before committing assets to `docs/`.
 - **Redact pass**: batch-blur (or solid-fill) known PII coordinates across a set

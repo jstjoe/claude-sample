@@ -280,12 +280,16 @@ else
   echo ">> recording ${SCREEN_NAME:-screen} (device $DEVICE @ ${FPS}fps) -> $RAW"
   [ -n "$CROP" ] && echo ">> area: crop $CROP (raw is full-screen; re-crop later with --reuse)" \
                  || echo ">> area: full screen"
+  # Clear the screen BEFORE the capture starts, so the recording never opens on
+  # leftover terminal output (the status lines above + prior scrollback). The
+  # warmup sleep then runs on an already-clean screen.
+  clear 2>/dev/null || true
   # -y: unique names mean no clash, but never hang on an overwrite prompt either.
   ffmpeg -hide_banner -y -loglevel error -f avfoundation -framerate "$FPS" -i "${DEVICE}${audin}" \
     -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p ${acodec[@]+"${acodec[@]}"} "$RAW" &
   FFPID=$!
   trap 'kill -INT "$FFPID" 2>/dev/null || true' EXIT
-  sleep "$SETTLE"
+  sleep "$SETTLE"     # avfoundation warmup — screen is already clear, nothing stale is captured
   run_demo
   kill -INT "$FFPID" 2>/dev/null || true    # SIGINT => ffmpeg finalizes the moov atom cleanly
   wait "$FFPID" 2>/dev/null || true

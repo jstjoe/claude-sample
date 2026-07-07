@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 # record-demo.sh — self-driving demo recorder. Starts a screen recording, runs
-# the demo curls itself (labeled + paced so they read on camera), stops the
-# recording, and emits BOTH an editable MP4 (real-time, for a talk track later)
-# and a snappy GIF (sped up, for inline docs/Slack). macOS only (ffmpeg avfoundation).
+# a scripted demo (labeled + paced so it reads on camera), stops the recording,
+# and emits BOTH an editable MP4 (real-time, for a talk track later) and a snappy
+# GIF (sped up, for inline docs/Slack). macOS only (ffmpeg avfoundation).
 #
-# Pairs with the demo-media skill. Run ONE command and walk away.
+# Pairs with the demo-media skill. Run ONE command and walk away. Project-agnostic:
+# the demo it runs comes from a --steps file, so the script itself is reusable.
+#
+# Demo steps (--steps FILE):
+#   The recorder is driven by a small shell file you provide. It sets DEMO_TITLE
+#   and defines a demo() function that calls  step "<label>" "<command>"  once per
+#   on-camera command. Example: demo-steps.example.sh (shipped beside this script).
+#   If --steps is omitted, ./demo-steps.sh then ./demo/steps.sh are auto-detected.
+#   step(), the pacing (PAUSE_*), and colors are provided by the recorder; the
+#   file may also read env like INCLUDE_LIVE to conditionally include steps.
 #
 # Screen selection:
 #   - Pass --screen N (avfoundation index) or --screen-name "Capture screen 1".
@@ -27,20 +36,19 @@
 #   - Add a label with --tag NAME -> <stamp>-NAME.{mp4,gif,raw.mov}.
 #
 # Usage:
-#   ./scripts/record-demo.sh                      # pick screen (if >1), full screen, no audio
-#   ./scripts/record-demo.sh --screen 4 --audio   # force device 4, record built-in mic too
-#   ./scripts/record-demo.sh --area 1400:900:40:120 --tag konnect
-#   ./scripts/record-demo.sh --list               # list screens + audio devices, exit
-#   ./scripts/record-demo.sh --no-record          # rehearse the curls, no recording
-#   ./scripts/record-demo.sh --reuse demo-out/<stamp>.raw.mov   # reprocess a capture
+#   ./record-demo.sh --steps demo/steps.sh        # pick screen (if >1), full screen, no audio
+#   ./record-demo.sh --steps demo/steps.sh --screen 4 --audio   # force device, +built-in mic
+#   ./record-demo.sh --steps demo/steps.sh --area 1400:900:40:120 --tag konnect
+#   ./record-demo.sh --list                       # list screens + audio devices, exit
+#   ./record-demo.sh --steps demo/steps.sh --no-record   # rehearse the steps, no recording
+#   ./record-demo.sh --reuse demo-out/<stamp>.raw.mov    # reprocess a capture (no steps needed)
 #
 # First real capture triggers a macOS "Screen Recording" permission prompt for
 # your terminal app — grant it (System Settings > Privacy & Security), re-run.
 #
-# Env-var equivalents (flags win): DEVICE, SCREEN_NAME, AUDIO, AUDIO_DEVICE,
-#   AREA/CROP, TAG, FPS, OUTDIR, HOST_LOCAL, HOST_DP, INCLUDE_LIVE, SETTLE,
-#   PAUSE_BEFORE, PAUSE_AFTER, RECORD, TRIM_START, TRIM_END, MP4_SPEED,
-#   GIF_SPEED, GIF_FPS, GIF_WIDTH, MP4_CRF.
+# Env-var equivalents (flags win): STEPS, DEVICE, SCREEN_NAME, AUDIO, AUDIO_DEVICE,
+#   AREA/CROP, TAG, FPS, OUTDIR, SETTLE, PAUSE_BEFORE, PAUSE_AFTER, RECORD,
+#   TRIM_START, TRIM_END, MP4_SPEED, GIF_SPEED, GIF_FPS, GIF_WIDTH, MP4_CRF.
 set -euo pipefail
 
 DEVICE="${DEVICE:-}"                 # explicit avfoundation screen index (blank = auto/prompt)
@@ -50,9 +58,7 @@ AUDIO_DEVICE="${AUDIO_DEVICE:-}"     # audio device index or name (blank = auto 
 FPS="${FPS:-30}"
 OUTDIR="${OUTDIR:-./demo-out}"
 TAG="${TAG:-}"
-HOST_LOCAL="${HOST_LOCAL:-localhost:8010}"
-HOST_DP="${HOST_DP:-localhost:8000}"
-INCLUDE_LIVE="${INCLUDE_LIVE:-1}"
+STEPS="${STEPS:-}"                   # demo steps file (blank = auto-detect ./demo-steps.sh, ./demo/steps.sh)
 SETTLE="${SETTLE:-2}"
 PAUSE_BEFORE="${PAUSE_BEFORE:-1.2}"
 PAUSE_AFTER="${PAUSE_AFTER:-2.5}"
@@ -78,6 +84,7 @@ while [ $# -gt 0 ]; do
     --audio-device) AUDIO=1; AUDIO_DEVICE="${2:?--audio-device needs a name/index}"; shift 2;;
     --no-audio)     AUDIO=0; shift;;
     --area)         CROP="${2:?--area needs w:h:x:y}"; shift 2;;
+    --steps)        STEPS="${2:?--steps needs a file}"; shift 2;;
     --tag)          TAG="${2:?--tag needs a label}"; shift 2;;
     --fps)          FPS="${2:?}"; shift 2;;
     --outdir)       OUTDIR="${2:?}"; shift 2;;
@@ -94,6 +101,13 @@ done
 command -v ffmpeg  >/dev/null || { echo "ffmpeg not found (brew install ffmpeg)"; exit 1; }
 command -v ffprobe >/dev/null || { echo "ffprobe not found (comes with ffmpeg)"; exit 1; }
 command -v jq      >/dev/null || { echo "jq not found (brew install jq)"; exit 1; }
+
+# Auto-detect a steps file when --steps/STEPS wasn't given.
+if [ -z "$STEPS" ]; then
+  for _c in ./demo-steps.sh ./demo/steps.sh; do
+    [ -f "$_c" ] && { STEPS="$_c"; break; }
+  done
+fi
 
 # ── device discovery ─────────────────────────────────────────────────────────
 # `ffmpeg -list_devices` prints to stderr and EXITS NON-ZERO, and grep may miss —
@@ -203,29 +217,34 @@ MP4="$OUTDIR/$BASE.mp4"; GIF="$OUTDIR/$BASE.gif"; PAL="$OUTDIR/$BASE.palette.png
 
 bold=$(tput bold 2>/dev/null || true); dim=$(tput dim 2>/dev/null || true)
 cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
-PAYLOAD='{"messages":[{"role":"user","content":"Reply to Jane Doe at jane@acme.com, phone 415-555-0132"}]}'
 
+# Provided to the steps file: print a labeled command, pause, run it, pause.
 step() {
   local title="$1" cmd="$2"
   printf '\n%s━━ %s ━━%s\n' "$bold$cyan" "$title" "$reset"
   printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
   sleep "$PAUSE_BEFORE"
-  eval "$cmd" || true          # a step failing (e.g. the intentional 500) must not abort
+  eval "$cmd" || true          # a step failing (e.g. an intentional non-2xx) must not abort
   sleep "$PAUSE_AFTER"
 }
 
+# Load the steps file (it sets DEMO_TITLE + defines demo()), then run it paced.
 run_demo() {
-  clear 2>/dev/null || true
-  printf '%sSkyflow × Kong — de-identify → LLM → re-identify%s\n' "$bold" "$reset"
-  sleep "$PAUSE_AFTER"
-  step "1/3  Offline round-trip (mock LLM) — PII out as tokens, back restored" \
-    "curl -s $HOST_LOCAL/vault/chat -H 'content-type: application/json' -d '$PAYLOAD' | jq '.choices[0].message.content'"
-  step "2/3  The Kong #14380 pitfall — de-id + ai-proxy on ONE route 500s" \
-    "curl -s -w '\nHTTP %{http_code}\n' $HOST_LOCAL/broken/chat -H 'content-type: application/json' -d '$PAYLOAD'"
-  if [ "$INCLUDE_LIVE" = "1" ]; then
-    step "3/3  Live on Konnect CP + real OpenAI (nested-proxy fix)" \
-      "curl -s $HOST_DP/ai/chat -H 'content-type: application/json' -d '$PAYLOAD' | jq '.choices[0].message.content'"
+  if [ -z "$STEPS" ]; then
+    echo "!! no demo steps file. Pass --steps FILE (or add ./demo-steps.sh or ./demo/steps.sh)." >&2
+    echo "   A steps file sets DEMO_TITLE and defines: demo() { step \"label\" \"command\"; ... }" >&2
+    echo "   See demo-steps.example.sh beside this script." >&2
+    exit 1
   fi
+  [ -r "$STEPS" ] || { echo "!! steps file not readable: $STEPS" >&2; exit 1; }
+  DEMO_TITLE=""; unset -f demo 2>/dev/null || true
+  # shellcheck disable=SC1090
+  source "$STEPS"
+  command -v demo >/dev/null 2>&1 || { echo "!! '$STEPS' must define a demo() function (see the example)." >&2; exit 1; }
+  clear 2>/dev/null || true
+  printf '%s%s%s\n' "$bold" "${DEMO_TITLE:-Demo}" "$reset"
+  sleep "$PAUSE_AFTER"
+  demo
   printf '\n%s✓ demo complete%s\n' "$bold$cyan" "$reset"
   sleep "$PAUSE_AFTER"
 }
@@ -233,12 +252,16 @@ run_demo() {
 # ── CAPTURE + DRIVE ──────────────────────────────────────────────────────────
 if [ -n "$REUSE" ]; then
   RAW="$REUSE"
-  echo ">> reusing $RAW (skipping capture + curls)"
+  echo ">> reusing $RAW (skipping capture + steps)"
 elif [ "$RECORD" = "0" ]; then
-  echo ">> --no-record rehearsal — running curls, no recording"
+  echo ">> --no-record rehearsal — running steps, no recording"
   run_demo
   exit 0
 else
+  if [ -z "$STEPS" ] || [ ! -r "$STEPS" ]; then
+    echo "!! recording needs a readable steps file. Pass --steps FILE (see demo-steps.example.sh)." >&2
+    exit 1
+  fi
   RAW="$OUTDIR/$BASE.raw.mov"
   choose_screen
   acodec=(); audin=":none"
@@ -303,6 +326,5 @@ echo ">> done:"
 echo "   MP4 (edit + narrate): $MP4"
 echo "   GIF (inline):         $GIF"
 echo
-echo ">> REDACT before sharing: step 3 hits real OpenAI. Blur any real response/token, e.g.:"
+echo ">> REDACT before sharing if any step showed real secrets/PII. Blur a region, e.g.:"
 echo "     magick frame.png -fill black -draw \"rectangle 300,220 700,260\" safe.png"
-echo "   (or record with INCLUDE_LIVE=0 to keep the capture fully mock/offline)"

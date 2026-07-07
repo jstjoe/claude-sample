@@ -26,14 +26,41 @@ It screen-records, runs a scripted sequence of demo commands *on camera*, stops,
 and writes a timestamped, editable **MP4** (real-time — add a talk track later)
 plus a snappy **GIF** (sped up — for inline docs/Slack). One command, walk away.
 
+The recorder is **project-agnostic**: the demo it runs comes from a `--steps`
+file you supply, so the same script records any project.
+
 ```bash
-./record-demo.sh                          # pick screen (prompts if >1), full screen, no audio
-./record-demo.sh --audio --tag v1         # + built-in mic, labeled take
-./record-demo.sh --list                   # list screens + audio devices, exit
-./record-demo.sh --area 1400:900:40:120   # crop to a region (w:h:x:y)
-./record-demo.sh --no-record              # rehearse the commands, no recording
-./record-demo.sh --reuse demo-out/<stamp>.raw.mov   # re-crop / re-speed a capture, no re-record
+./record-demo.sh --steps demo/steps.sh                 # pick screen (prompts if >1), full screen, no audio
+./record-demo.sh --steps demo/steps.sh --audio --tag v1  # + built-in mic, labeled take
+./record-demo.sh --steps demo/steps.sh --area 1400:900:40:120   # crop to a region (w:h:x:y)
+./record-demo.sh --steps demo/steps.sh --no-record     # rehearse the steps, no recording
+./record-demo.sh --list                                # list screens + audio devices, exit
+./record-demo.sh --reuse demo-out/<stamp>.raw.mov      # re-crop / re-speed a capture (no steps needed)
 ```
+
+### The steps file (`--steps`)
+
+A small shell file that the recorder **sources**, then drives with pacing +
+on-screen labels. It sets `DEMO_TITLE` and defines a `demo()` function that calls
+`step "<label>" "<command>"` once per on-camera command:
+
+```bash
+DEMO_TITLE="My Service — quick tour"
+HOST="${HOST:-localhost:8080}"
+
+demo() {
+  step "1/2  Health check"    "curl -s $HOST/healthz | jq ."
+  step "2/2  Create a widget" "curl -s -X POST $HOST/widgets -d '{\"name\":\"demo\"}' | jq ."
+  # gate steps that show real secrets: [ \"${INCLUDE_LIVE:-1}\" = 1 ] && step ...
+}
+```
+
+- `step`, the pauses, and colors are provided by the recorder — don't redefine them.
+- The command runs under `eval` (pipes/quotes/jq work); a non-zero exit (e.g. an
+  intentional error demo) is tolerated, not fatal.
+- If `--steps` is omitted, `./demo-steps.sh` then `./demo/steps.sh` are auto-detected.
+- Full template: **`demo-steps.example.sh`** beside this script. Keep each project's
+  steps file *in that project's repo* (e.g. a tracked `demo/` dir), not here.
 
 Design decisions worth keeping (each fixed a real failure):
 
@@ -50,11 +77,9 @@ Design decisions worth keeping (each fixed a real failure):
 - First capture triggers a macOS **Screen Recording** permission prompt for your
   terminal app — grant it (System Settings › Privacy & Security), then re-run.
 
-**Per-project bit:** the demo it runs lives in the `run_demo()` function (a
-labeled, paced sequence of `curl`s) plus `HOST_*` / `PAYLOAD` at the top. Edit
-those for a new project; everything else — capture, screen selection, audio,
-trimming, the MP4+GIF pipeline — is generic and reusable. `--no-record` runs the
-commands without recording so you can rehearse pacing first.
+Everything except the steps file — capture, screen selection, audio, trimming,
+the MP4+GIF pipeline — is generic and reusable across projects. `--no-record`
+runs the steps without recording so you can rehearse pacing first.
 
 The sections below are the underlying ffmpeg/ImageMagick recipes the script is
 built from — reach for them directly for one-off edits or non-recording tasks.

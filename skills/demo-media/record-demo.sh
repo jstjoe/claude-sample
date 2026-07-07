@@ -217,11 +217,16 @@ MP4="$OUTDIR/$BASE.mp4"; GIF="$OUTDIR/$BASE.gif"; PAL="$OUTDIR/$BASE.palette.png
 
 bold=$(tput bold 2>/dev/null || true); dim=$(tput dim 2>/dev/null || true)
 cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
+# Heading colors a steps file can pass as step()'s optional 3rd arg (default green).
+c_red=$(tput setaf 1 2>/dev/null || true)
+c_green=$(tput setaf 2 2>/dev/null || true)
+c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
 
 # Provided to the steps file: print a labeled command, pause, run it, pause.
+# Optional 3rd arg = heading color (e.g. $c_red / $c_orange); defaults to green.
 step() {
-  local title="$1" cmd="$2"
-  printf '\n%s━━ %s ━━%s\n' "$bold$cyan" "$title" "$reset"
+  local title="$1" cmd="$2" color="${3:-$c_green}"
+  printf '\n%s━━ %s ━━%s\n' "$bold$color" "$title" "$reset"
   printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
   sleep "$PAUSE_BEFORE"
   eval "$cmd" || true          # a step failing (e.g. an intentional non-2xx) must not abort

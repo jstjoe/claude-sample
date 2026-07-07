@@ -42,7 +42,7 @@ file you supply, so the same script records any project.
 
 A small shell file that the recorder **sources**, then drives with pacing +
 on-screen labels. It sets `DEMO_TITLE` and defines a `demo()` function that calls
-`step "<label>" "<command>"` once per on-camera command:
+`step "<label>" "<command>" [color]` once per on-camera command:
 
 ```bash
 DEMO_TITLE="My Service — quick tour"
@@ -50,12 +50,13 @@ HOST="${HOST:-localhost:8080}"
 
 demo() {
   step "1/2  Health check"    "curl -s $HOST/healthz | jq ."
-  step "2/2  Create a widget" "curl -s -X POST $HOST/widgets -d '{\"name\":\"demo\"}' | jq ."
+  step "2/2  Create a widget" "curl -s -X POST $HOST/widgets -d '{\"name\":\"demo\"}' | jq ." "$c_red"
   # gate steps that show real secrets: [ \"${INCLUDE_LIVE:-1}\" = 1 ] && step ...
 }
 ```
 
-- `step`, the pauses, and colors are provided by the recorder — don't redefine them.
+- `step`, the pauses, and the heading colors are provided by the recorder — don't redefine them.
+- Optional 3rd arg colors the heading: `$c_red`, `$c_green`, `$c_orange` (default green).
 - The command runs under `eval` (pipes/quotes/jq work); a non-zero exit (e.g. an
   intentional error demo) is tolerated, not fatal.
 - If `--steps` is omitted, `./demo-steps.sh` then `./demo/steps.sh` are auto-detected.

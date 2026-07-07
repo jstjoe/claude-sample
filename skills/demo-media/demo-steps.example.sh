@@ -5,9 +5,11 @@
 #
 # Contract:
 #   - Set DEMO_TITLE (the banner shown first).
-#   - Define demo() and call  step "<label>" "<command>"  once per on-camera command.
-#   - step(), the pauses (PAUSE_BEFORE/PAUSE_AFTER), and colors are provided by
-#     the recorder — don't redefine them.
+#   - Define demo() and call  step "<label>" "<command>" [color]  per on-camera command.
+#   - step()'s optional 3rd arg colors the heading; the recorder provides
+#     $c_red / $c_green / $c_orange. Omit it for the default (green).
+#   - step(), the pauses (PAUSE_BEFORE/PAUSE_AFTER), and the colors are provided
+#     by the recorder — don't redefine them.
 #   - The <command> string is run with `eval`, so pipes/quotes/jq all work. A
 #     non-zero exit (e.g. an intentional error demo) is tolerated, not fatal.
 #   - You can read env vars to make steps conditional (see INCLUDE_LIVE below),
@@ -25,8 +27,10 @@ demo() {
   step "1/3  Health check" \
     "curl -s $HOST/healthz | jq ."
 
+  # Optional 3rd arg colors the heading (default green).
   step "2/3  Create a widget" \
-    "curl -s -X POST $HOST/widgets -H 'content-type: application/json' -d '{\"name\":\"demo\"}' | jq ."
+    "curl -s -X POST $HOST/widgets -H 'content-type: application/json' -d '{\"name\":\"demo\"}' | jq ." \
+    "$c_orange"
 
   # Conditional step: skip anything that shows real secrets with INCLUDE_LIVE=0.
   if [ "${INCLUDE_LIVE:-1}" = "1" ]; then

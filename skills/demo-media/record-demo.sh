@@ -224,6 +224,9 @@ c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
 c_json=$(tput setaf 3 2>/dev/null || true)         # request payload / JSON highlight
 rev=$(tput rev 2>/dev/null || true)                # reverse video (closing banner)
 
+# Emit N box-drawing horizontals (nothing when N<=0). Used to size response rules.
+rule() { local n="${1:-0}"; [ "$n" -gt 0 ] && printf '─%.0s' $(seq 1 "$n") || true; }
+
 # Provided to the steps file: render one example — a heading, the command (with
 # any -d JSON payload broken onto its own highlighted line), then the response in
 # a labeled, colored box. Optional 3rd arg = heading/box color (default green).
@@ -247,17 +250,24 @@ step() {
   fi
   sleep "$PAUSE_BEFORE"
 
-  # Run, capture, and show the response in a labeled box tinted by the step color.
+  # Run, capture, and show the response between rules sized to the content width
+  # (longest line, capped at the terminal). Labeled top rule + bottom rule, no
+  # side borders — those looked cut off on wide screens.
   local out; out="$(eval "$cmd" 2>&1)" || true
-  printf '\n%s┌─ Response ────────────────────────────────%s\n' "$bold$color" "$reset"
-  if [ -n "$out" ]; then
-    printf '%s\n' "$out" | while IFS= read -r line || [ -n "$line" ]; do
-      printf '%s│%s %s\n' "$color" "$reset" "$line"
-    done
-  else
-    printf '%s│%s (no output)\n' "$color" "$reset"
+  [ -n "$out" ] || out="(no output)"
+  local W=24 line
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ "${#line}" -gt "$W" ] && W="${#line}"
+  done <<< "$out"
+  # Cap to the terminal width only when attached to a real terminal; when piped
+  # (no tty) tput reports 80 and would shrink the rules below the content.
+  if [ -t 1 ]; then
+    local cols; cols=$(tput cols 2>/dev/null || echo 200)
+    [ "$W" -gt $((cols - 1)) ] && W=$((cols - 1))
   fi
-  printf '%s└───────────────────────────────────────────%s\n' "$color" "$reset"
+  printf '\n%s── Response %s%s\n' "$bold$color" "$(rule $((W - 12)))" "$reset"   # "── Response " is 12 wide
+  printf '%s\n' "$out"
+  printf '%s%s%s\n' "$color" "$(rule "$W")" "$reset"
   sleep "$PAUSE_AFTER"
 }
 

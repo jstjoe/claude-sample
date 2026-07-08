@@ -29,10 +29,11 @@ demo() {
   step "1/3  Health check" \
     "curl -s $HOST/healthz | jq ."
 
-  # Optional 3rd arg colors the heading (default green).
+  # 3rd arg = color; 4th = the output-rule label (default "Response"); 5th = a
+  # grayed-out note printed before the command.
   step "2/3  Create a widget" \
     "curl -s -X POST $HOST/widgets -H 'content-type: application/json' -d '{\"name\":\"demo\"}' | jq ." \
-    "$c_orange"
+    "$c_orange" "Response" "POST a new widget"
 
   # Conditional step: skip anything that shows real secrets with INCLUDE_LIVE=0.
   if [ "${INCLUDE_LIVE:-1}" = "1" ]; then

@@ -240,14 +240,21 @@ rev=$(tput rev 2>/dev/null || true)                # reverse video (closing bann
 # Emit N box-drawing horizontals (nothing when N<=0). Used to size response rules.
 rule() { local n="${1:-0}"; [ "$n" -gt 0 ] && printf '─%.0s' $(seq 1 "$n") || true; }
 
-# Provided to the steps file: render one example — a heading, the command (with
-# any -d JSON payload broken onto its own highlighted line), then the response in
-# a labeled, colored box. Optional 3rd arg = heading/box color (default green).
+# Provided to the steps file: render one example — a heading, an optional dim
+# note, the command (with any -d JSON payload broken onto its own highlighted
+# line), then the result under a labeled, colored rule.
+#   step "<title>" "<command>" [color] [result-label] [note]
+#   color        heading/rule color (default green)
+#   result-label label over the output rule (default "Response"; e.g. "Prompt"
+#                for echo routes where the output IS the sent payload)
+#   note         a grayed-out one-liner shown before the command
 step() {
-  local title="$1" cmd="$2" color="${3:-$c_green}"
+  local title="$1" cmd="$2" color="${3:-$c_green}" label="${4:-Response}" note="${5:-}"
 
-  # Prominent per-example heading.
-  printf '\n\n%s▎ %s%s\n\n' "$bold$color" "$title" "$reset"
+  # Prominent per-example heading + optional dim note describing the call.
+  printf '\n\n%s▎ %s%s\n' "$bold$color" "$title" "$reset"
+  [ -n "$note" ] && printf '%s# %s%s\n' "$dim" "$note" "$reset"
+  printf '\n'
 
   # Command, dim — but pull the -d '<payload>' onto its own bright line so the
   # JSON stands out (a break before and after). JSON has no single quotes, so the
@@ -278,7 +285,7 @@ step() {
     local cols; cols=$(tput cols 2>/dev/null || echo 200)
     [ "$W" -gt $((cols - 1)) ] && W=$((cols - 1))
   fi
-  printf '\n%s── Response %s%s\n' "$bold$color" "$(rule $((W - 12)))" "$reset"   # "── Response " is 12 wide
+  printf '\n%s── %s %s%s\n' "$bold$color" "$label" "$(rule $((W - ${#label} - 4)))" "$reset"  # "── <label> " = len+4
   printf '%s\n' "$out"
   printf '%s%s%s\n' "$color" "$(rule "$W")" "$reset"
   sleep "$PAUSE_AFTER"

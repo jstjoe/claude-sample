@@ -236,20 +236,23 @@ cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
 c_red=$(tput setaf 1 2>/dev/null || true)
 c_green=$(tput setaf 2 2>/dev/null || true)
 c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
-c_purple=$(tput setaf 99 2>/dev/null || tput setaf 5 2>/dev/null || true)   # Skyflow-ish purple (title)
+c_purple=$(tput setaf 99 2>/dev/null || tput setaf 5 2>/dev/null || true)   # Skyflow-ish purple (title/headings)
 c_json=$(tput setaf 7 2>/dev/null || true)         # request payload / JSON (white)
 rev=$(tput rev 2>/dev/null || true)                # reverse video (closing banner)
+# Dusty highlight tones — the ONLY red/green in the demo, reserved for data.
+hl_red=$(tput setaf 174 2>/dev/null || tput setaf 1 2>/dev/null || true)    # dusty rose (PII)
+hl_green=$(tput setaf 108 2>/dev/null || tput setaf 2 2>/dev/null || true)  # sage (tokens)
 
 # Emit N box-drawing horizontals (nothing when N<=0). Used to size response rules.
 rule() { local n="${1:-0}"; [ "$n" -gt 0 ] && printf '─%.0s' $(seq 1 "$n") || true; }
 
-# Highlight matches in $1: HL_SENSITIVE (PII) in red, HL_TOKENS (Skyflow tokens)
-# in green. $2 = base color to resume after each match (so surrounding text keeps
-# its color). Steps files set HL_SENSITIVE; HL_TOKENS defaults to bracket tokens.
+# Highlight matches in $1: HL_SENSITIVE (PII) in dusty red, HL_TOKENS (Skyflow
+# tokens) in sage green. $2 = base color to resume after each match (so surrounding
+# text keeps its color). Steps files set HL_SENSITIVE; HL_TOKENS defaults to bracket tokens.
 hl() {
   local s="$1" base="${2:-}"
-  [ -n "$HL_SENSITIVE" ] && s=$(printf '%s' "$s" | sed -E "s/(${HL_SENSITIVE})/${bold}${c_red}\\1${reset}${base}/g")
-  [ -n "$HL_TOKENS" ]    && s=$(printf '%s' "$s" | sed -E "s/(${HL_TOKENS})/${bold}${c_green}\\1${reset}${base}/g")
+  [ -n "$HL_SENSITIVE" ] && s=$(printf '%s' "$s" | sed -E "s/(${HL_SENSITIVE})/${bold}${hl_red}\\1${reset}${base}/g")
+  [ -n "$HL_TOKENS" ]    && s=$(printf '%s' "$s" | sed -E "s/(${HL_TOKENS})/${bold}${hl_green}\\1${reset}${base}/g")
   printf '%s' "$s"
 }
 
@@ -286,7 +289,8 @@ step() {
   # Run, capture, and show the result under a colored label (no border rules).
   local out; out="$(eval "$cmd" 2>&1)" || true
   [ -n "$out" ] || out="(no output)"
-  printf '\n%s%s%s\n' "$bold$color" "$label" "$reset"   # colored label, no border rules
+  printf '\n%s%s%s\n' "$bold$color" "$label" "$reset"          # colored label
+  printf '%s%s%s\n' "$color" "$(rule "${#label}")" "$reset"    # underline, label width
   printf '%s\n' "$(hl "$out")"
   sleep "$PAUSE_AFTER"
 }

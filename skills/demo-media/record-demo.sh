@@ -290,9 +290,15 @@ else
   # leftover terminal output (the status lines above + prior scrollback). The
   # warmup sleep then runs on an already-clean screen.
   clear 2>/dev/null || true
+  # Send ffmpeg's own output to a log, NOT the terminal. Its startup chatter (the
+  # objc warning + avfoundation pixel-format negotiation) would otherwise print
+  # onto the screen we're capturing and show up in the opening frames. </dev/null
+  # so a backgrounded ffmpeg never blocks on tty stdin.
   # -y: unique names mean no clash, but never hang on an overwrite prompt either.
+  FFLOG="$OUTDIR/$BASE.ffmpeg.log"
   ffmpeg -hide_banner -y -loglevel error -f avfoundation -framerate "$FPS" -i "${DEVICE}${audin}" \
-    -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p ${acodec[@]+"${acodec[@]}"} "$RAW" &
+    -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p ${acodec[@]+"${acodec[@]}"} "$RAW" \
+    </dev/null >"$FFLOG" 2>&1 &
   FFPID=$!
   trap 'kill -INT "$FFPID" 2>/dev/null || true' EXIT
   sleep "$SETTLE"     # avfoundation warmup — screen is already clear, nothing stale is captured
@@ -300,6 +306,8 @@ else
   kill -INT "$FFPID" 2>/dev/null || true    # SIGINT => ffmpeg finalizes the moov atom cleanly
   wait "$FFPID" 2>/dev/null || true
   trap - EXIT
+  # ffmpeg's chatter is hidden now, so surface real failures (empty capture).
+  [ -s "$RAW" ] || { echo "!! recording produced no data — see $FFLOG:" >&2; tail -5 "$FFLOG" >&2; exit 1; }
   echo ">> recording stopped -> $RAW"
 fi
 

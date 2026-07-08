@@ -236,6 +236,7 @@ cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
 c_red=$(tput setaf 1 2>/dev/null || true)
 c_green=$(tput setaf 2 2>/dev/null || true)
 c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
+c_purple=$(tput setaf 99 2>/dev/null || tput setaf 5 2>/dev/null || true)   # Skyflow-ish purple (title)
 c_json=$(tput setaf 7 2>/dev/null || true)         # request payload / JSON (white)
 rev=$(tput rev 2>/dev/null || true)                # reverse video (closing banner)
 
@@ -282,24 +283,11 @@ step() {
   fi
   sleep "$PAUSE_BEFORE"
 
-  # Run, capture, and show the response between rules sized to the content width
-  # (longest line, capped at the terminal). Labeled top rule + bottom rule, no
-  # side borders — those looked cut off on wide screens.
+  # Run, capture, and show the result under a colored label (no border rules).
   local out; out="$(eval "$cmd" 2>&1)" || true
   [ -n "$out" ] || out="(no output)"
-  local W=24 line
-  while IFS= read -r line || [ -n "$line" ]; do
-    [ "${#line}" -gt "$W" ] && W="${#line}"
-  done <<< "$out"
-  # Cap to the terminal width only when attached to a real terminal; when piped
-  # (no tty) tput reports 80 and would shrink the rules below the content.
-  if [ -t 1 ]; then
-    local cols; cols=$(tput cols 2>/dev/null || echo 200)
-    [ "$W" -gt $((cols - 1)) ] && W=$((cols - 1))
-  fi
-  printf '\n%s── %s %s%s\n' "$bold$color" "$label" "$(rule $((W - ${#label} - 4)))" "$reset"  # "── <label> " = len+4
+  printf '\n%s%s%s\n' "$bold$color" "$label" "$reset"   # colored label, no border rules
   printf '%s\n' "$(hl "$out")"
-  printf '%s%s%s\n' "$color" "$(rule "$W")" "$reset"
   sleep "$PAUSE_AFTER"
 }
 
@@ -323,7 +311,9 @@ run_demo() {
   source "$STEPS"
   command -v demo >/dev/null 2>&1 || { echo "!! '$STEPS' must define a demo() function (see the example)." >&2; exit 1; }
   clear 2>/dev/null || true
-  printf '%s%s%s\n' "$bold" "${DEMO_TITLE:-Demo}" "$reset"
+  local _t="${DEMO_TITLE:-Demo}"
+  printf '%s%s%s\n' "$bold$c_purple" "$_t" "$reset"
+  printf '%s%s%s\n' "$c_purple" "$(rule "${#_t}")" "$reset"   # purple underline, title width
   sleep "$PAUSE_AFTER"
   demo
   printf '\n\n%s%s  ✓  AI APIs secured!  %s\n\n' "$bold$c_green" "$rev" "$reset"

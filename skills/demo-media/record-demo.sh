@@ -69,6 +69,8 @@ STEPS="${STEPS:-}"                   # demo steps file (blank = auto-detect ./de
 SETTLE="${SETTLE:-2}"               # warmup before the demo starts; also the default lead-in trimmed
 PAUSE_BEFORE="${PAUSE_BEFORE:-1.2}"
 PAUSE_AFTER="${PAUSE_AFTER:-2.5}"
+HL_SENSITIVE="${HL_SENSITIVE:-}"                       # regex of PII to highlight red in payload/output (steps file sets it)
+HL_TOKENS="${HL_TOKENS:-\[[A-Za-z0-9_]+\]}"           # regex of tokens to highlight green (default: [BRACKETED] tokens)
 RECORD="${RECORD:-1}"
 TRIM_START="${TRIM_START:-}"        # trim off the START; blank => auto-trim the SETTLE lead-in, 0 => keep all
 TRIM_END="${TRIM_END:-}"
@@ -234,11 +236,21 @@ cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
 c_red=$(tput setaf 1 2>/dev/null || true)
 c_green=$(tput setaf 2 2>/dev/null || true)
 c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
-c_json=$(tput setaf 3 2>/dev/null || true)         # request payload / JSON highlight
+c_json=$(tput setaf 7 2>/dev/null || true)         # request payload / JSON (white)
 rev=$(tput rev 2>/dev/null || true)                # reverse video (closing banner)
 
 # Emit N box-drawing horizontals (nothing when N<=0). Used to size response rules.
 rule() { local n="${1:-0}"; [ "$n" -gt 0 ] && printf '─%.0s' $(seq 1 "$n") || true; }
+
+# Highlight matches in $1: HL_SENSITIVE (PII) in red, HL_TOKENS (Skyflow tokens)
+# in green. $2 = base color to resume after each match (so surrounding text keeps
+# its color). Steps files set HL_SENSITIVE; HL_TOKENS defaults to bracket tokens.
+hl() {
+  local s="$1" base="${2:-}"
+  [ -n "$HL_SENSITIVE" ] && s=$(printf '%s' "$s" | sed -E "s/(${HL_SENSITIVE})/${bold}${c_red}\\1${reset}${base}/g")
+  [ -n "$HL_TOKENS" ]    && s=$(printf '%s' "$s" | sed -E "s/(${HL_TOKENS})/${bold}${c_green}\\1${reset}${base}/g")
+  printf '%s' "$s"
+}
 
 # Provided to the steps file: render one example — a heading, an optional dim
 # note, the command (with any -d JSON payload broken onto its own highlighted
@@ -263,7 +275,7 @@ step() {
     local before="${cmd%%-d \'*}" rest="${cmd#*-d \'}"
     local payload="${rest%%\'*}" after="${rest#*\'}"
     printf '%s$ %s-d \047%s\n\n'   "$dim" "$before" "$reset"
-    printf '      %s%s%s\n\n'      "$bold$c_json" "$payload" "$reset"
+    printf '      %s%s%s\n\n'      "$bold$c_json" "$(hl "$payload" "$bold$c_json")" "$reset"
     printf '%s   \047%s%s\n'       "$dim" "$after" "$reset"
   else
     printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
@@ -286,7 +298,7 @@ step() {
     [ "$W" -gt $((cols - 1)) ] && W=$((cols - 1))
   fi
   printf '\n%s── %s %s%s\n' "$bold$color" "$label" "$(rule $((W - ${#label} - 4)))" "$reset"  # "── <label> " = len+4
-  printf '%s\n' "$out"
+  printf '%s\n' "$(hl "$out")"
   printf '%s%s%s\n' "$color" "$(rule "$W")" "$reset"
   sleep "$PAUSE_AFTER"
 }

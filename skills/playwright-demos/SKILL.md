@@ -1,0 +1,173 @@
+---
+name: playwright-demos
+description: >
+  Drive a real browser to produce automated demo videos and screenshots with
+  Playwright (local browser automation, macOS). Use when the user wants to
+  record a scripted web-app walkthrough to video/GIF/MP4, capture screenshots of
+  a site or flow, auto-generate an automation script from clicks
+  (codegen), emulate a device, or build a repeatable browser-demo pipeline.
+  Ships a turnkey recorder (playwright-record.mjs) that launches Chromium,
+  records the session with an animated cursor + action/chapter overlays via the
+  screencast API, runs a scripted flow you supply, and emits a timestamped
+  webm/mp4/gif + PNG stills. Triggers on: "record a browser demo", "Playwright",
+  "playwright-record", "screencast", "codegen", "record web app", "browser
+  screenshot", "automate the browser", "screen record a website", "demo a web UI".
+metadata:
+  tags: playwright, browser, video, screencast, screenshots, demo, automation
+---
+
+# Playwright demos: scripted browser recordings
+
+Local browser automation tuned for **demo capture** — record a web-app
+walkthrough to video, grab screenshots, or author the script by clicking. Pairs
+with the sibling **demo-media** (ffmpeg/ImageMagick edits) and
+**remotion-best-practices** (branded titles/motion) skills.
+
+Verified against **Playwright 1.61**. Requires **Node ≥ 22**.
+
+## Setup
+
+Playwright is already wired into this repo's `package.json`. From the repo root:
+
+```bash
+npm install                       # installs playwright + (postinstall) Chromium
+# or, in another project:
+npm i -D playwright && npx playwright install chromium
+```
+
+The npm package and the browser binaries are **separate installs** — `npm i`
+alone does not download a browser. Browsers cache in `~/Library/Caches/ms-playwright`
+(override with `PLAYWRIGHT_BROWSERS_PATH`). On CI add `--with-deps`.
+
+## Turnkey recorder: `playwright-record.mjs`
+
+This skill ships a recorder — `playwright-record.mjs`, in this skill's directory.
+It launches Chromium (headed, paced with `slowMo` so it reads on camera), records
+the session, runs a **scripted flow you supply**, flushes the video, and
+optionally transcodes to a shareable **MP4** and a snappy **GIF**. One command,
+walk away — the browser twin of demo-media's `record-demo.sh` terminal recorder.
+
+```bash
+node skills/playwright-demos/playwright-record.mjs --flow demo/flow.mjs --mp4 --gif
+node skills/playwright-demos/playwright-record.mjs --flow demo/flow.mjs --device "iPhone 15" --mp4
+node skills/playwright-demos/playwright-record.mjs --url https://example.com --shot hero.png   # screenshot only
+node skills/playwright-demos/playwright-record.mjs --flow demo/flow.mjs --headless             # CI / no window
+node skills/playwright-demos/playwright-record.mjs --help
+```
+
+By default it records with Playwright's **screencast** API: an **animated mouse
+cursor**, a per-action **title overlay**, and full-screen **chapter cards** — the
+affordances that make an automated run look narrated. `--basic` falls back to the
+plain `recordVideo` context option (no cursor/overlays). Outputs land in
+`demo-out/<stamp>[-tag].{webm,mp4,gif}` and `demo-out/<stamp>-<name>.png` — never
+overwriting a prior take.
+
+Key flags (full list via `--help`): `--size WxH` (viewport + video), `--slowmo ms`
+(pacing between actions), `--pause ms` (hold after each step), `--device NAME`
+(emulation), `--cursor pointer|none`, `--scale 2` (retina screenshots),
+`--headless`, `--tag LABEL`, `--mp4`, `--gif`, `--no-webm`.
+
+### The flow file (`--flow`)
+
+A small ES module that default-exports an async function. The recorder calls it
+with a context object and drives pacing + on-screen narration:
+
+```js
+export default async function demo({ page, step, chapter, shot, log, args }) {
+  await page.goto(args.url ?? 'http://localhost:3000', { waitUntil: 'networkidle' });
+  await chapter('Widget Console', { description: 'Search, browse, drill in' });   // full-screen card
+  await step('Search for widgets', async () => {
+    await page.getByPlaceholder('Search').fill('widgets');
+    await page.keyboard.press('Enter');
+    await page.getByText(/results/i).waitFor();      // wait on a real signal, not a fixed sleep
+  });
+  await shot('results');   // demo-out/<stamp>-results.png, a still for docs/Slack
+}
+```
+
+- `page`, `context` — Playwright objects; the video is already recording.
+- `step(label, fn)` — runs `fn`, logs the label, holds `--pause` after. Screencast
+  auto-draws the cursor + action title; you don't add those.
+- `chapter(title, {description, duration})` — full-screen narration card (screencast only).
+- `shot(name)` — timestamped PNG still alongside the video.
+- Full template: **`flow.example.mjs`** beside this script. Keep each project's
+  flow file *in that project's repo* (e.g. a tracked `demo/` dir), not here.
+
+Design decisions worth keeping:
+
+- **Screencast by default, recordVideo as fallback.** Screencast (Playwright ≥1.59)
+  adds the animated cursor, action titles, and chapter cards and writes straight to
+  our timestamped path. `--basic` uses `recordVideo`, whose file is random-named and
+  flushed only on `context.close()` — the recorder renames it for you either way.
+- **Headed + `slowMo` by default.** A real cursor and realistic timing only appear
+  headed; `slowMo` inserts delay around every action so it's watchable. `--headless`
+  still records video (works in CI) but looks robotic and has no OS cursor.
+- **Video is WebM only.** Sharing needs MP4/GIF, so `--mp4`/`--gif` transcode with
+  the same ffmpeg recipes as demo-media (H.264 `-pix_fmt yuv420p -movflags +faststart`;
+  2-pass palette GIF). Video flushes on `stop()`/`context.close()` — read the path after.
+
+## Author flows by recording: `codegen`
+
+Don't hand-write selectors — **click through the flow and let Playwright emit the
+script**, then paste the locators into your flow file:
+
+```bash
+npx playwright codegen http://localhost:3000
+npx playwright codegen --viewport-size="1280,800" --output demo/raw.mjs http://localhost:3000
+npx playwright codegen --device="iPhone 15" example.com
+```
+
+Auth-gated apps: record once saving storage, then replay it:
+
+```bash
+npx playwright codegen --save-storage=auth.json https://app.example.com/login   # log in, close
+npx playwright codegen --load-storage=auth.json  https://app.example.com        # already signed in
+# in a flow: await browser.newContext({ storageState: 'auth.json' })
+```
+
+codegen prefers **role/text/label/test-id** locators (`getByRole`, `getByText`,
+`getByLabel`, `getByTestId`) — keep those over brittle CSS; they read clearly on
+camera and survive restyles.
+
+## Screenshots
+
+```bash
+node skills/playwright-demos/playwright-record.mjs --url https://example.com --shot hero.png --scale 2
+npx playwright screenshot --full-page https://example.com out.png
+npx playwright screenshot --device="iPhone 15" --color-scheme=dark example.com mobile.png
+```
+
+In a flow: `await page.screenshot({ path, fullPage })`, element shots via
+`locator.screenshot()`, crop with `clip:{x,y,width,height}`, box out secrets with
+`mask:[locator]`. **Retina** needs two settings together: context
+`deviceScaleFactor: 2` **and** screenshot `scale: 'device'` (default `'css'` ignores DPR).
+The recorder wires this up when you pass `--scale 2`.
+
+## Pacing that reads on camera
+
+- **`slowMo`** (launch option, ms) is the primary knob — delays every action. The
+  recorder sets it from `--slowmo`.
+- **Wait on real signals**, not fixed sleeps: `await expect(locator).toBeVisible()`,
+  `page.waitForLoadState('networkidle')`, `locator.waitFor()`. `page.waitForTimeout`
+  is acceptable for demo beats but is an anti-pattern for correctness.
+- **On-camera affordances** come free in screencast mode (cursor + action titles).
+  For custom callouts use `page.screencast.showOverlay('<div>…</div>', {duration})`
+  or annotate in post with demo-media/Remotion.
+
+## → Editing & branding
+
+- Trim/crop/speed/compress, or convert WebM→MP4/GIF by hand: use **demo-media**.
+- Wrap the recording in an intro card, brand colors, and transitions: **remotion-best-practices**
+  (encode a Studio-friendly copy first — see demo-media's `--remotion`).
+
+## Gotchas
+
+- **Browsers install separately** from the npm package — run `npx playwright install chromium`.
+- **Video flushes late**: `page.screencast.stop()` or `context.close()` writes the
+  file; read `page.video().path()` *after* close (the recorder handles this).
+- **Default video size is capped** to an 800×800 box if you don't set `size` — the
+  recorder always sets it from `--size`.
+- **WebM only** out of Playwright; transcode for sharing.
+- **`page.video()` is `null`** unless the context enabled recording; one video **per page**.
+- **Trace viewer** (`context.tracing.start(...)` → `npx playwright show-trace trace.zip`)
+  is for *debugging* a flow (DOM/network/timeline), not a clean demo asset.

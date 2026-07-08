@@ -10,11 +10,19 @@ Version-controlled [Claude Code skills](https://docs.claude.com/en/docs/claude-c
 symlinked live via `./install.sh`. See [skills/README.md](skills/README.md) for
 the full list and setup. Currently:
 
+- **vhs-demos** — record reproducible terminal demos as GIF/MP4 from a `.tape`
+  script with [VHS](https://github.com/charmbracelet/vhs).
+- **playwright-demos** — drive a real browser to record scripted web-app demos
+  (animated cursor + overlays) and capture screenshots, via a turnkey
+  `playwright-record.mjs` recorder.
 - **demo-media** — record, compress, and annotate demo videos and screenshots
   (ffmpeg + ImageMagick), including the turnkey `record-demo.sh` recorder.
 - **remotion-best-practices** — build branded videos in React with
   [Remotion](https://remotion.dev) and render to MP4. Pairs with demo-media to
   turn a raw screen recording into a polished, titled clip.
+
+New to this? **[docs/automated-demos.md](docs/automated-demos.md)** is the map —
+which tool to reach for and copy-paste recipes for the common end-to-end flows.
 
 ## Local shell
 

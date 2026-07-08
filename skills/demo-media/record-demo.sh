@@ -69,7 +69,6 @@ STEPS="${STEPS:-}"                   # demo steps file (blank = auto-detect ./de
 SETTLE="${SETTLE:-2}"               # warmup before the demo starts; also the default lead-in trimmed
 PAUSE_BEFORE="${PAUSE_BEFORE:-1.2}"
 PAUSE_AFTER="${PAUSE_AFTER:-2.5}"
-RULE_WIDTH_PCT="${RULE_WIDTH_PCT:-175}"  # response rule width as % of content (175 = 75% wider than the text)
 RECORD="${RECORD:-1}"
 TRIM_START="${TRIM_START:-}"        # trim off the START; blank => auto-trim the SETTLE lead-in, 0 => keep all
 TRIM_END="${TRIM_END:-}"
@@ -280,7 +279,6 @@ step() {
   while IFS= read -r line || [ -n "$line" ]; do
     [ "${#line}" -gt "$W" ] && W="${#line}"
   done <<< "$out"
-  W=$(( W * RULE_WIDTH_PCT / 100 ))     # widen the rules past the text (default 175% = +75%)
   # Cap to the terminal width only when attached to a real terminal; when piped
   # (no tty) tput reports 80 and would shrink the rules below the content.
   if [ -t 1 ]; then

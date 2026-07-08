@@ -59,7 +59,7 @@ demo() {
 - `step`, `group`, the pauses, and the heading colors are provided by the recorder — don't redefine them.
 - Optional 3rd arg colors the heading: `$c_red`, `$c_green`, `$c_orange` (default green).
 - 4th arg labels the output rule (default `Response`; e.g. `Prompt` when the output echoes the sent payload); 5th is a grayed-out note printed before the command.
-- Response rules span the content width × `RULE_WIDTH_PCT` (default 175%), capped at the terminal.
+- Response rules span the content width, capped at the terminal width.
 - `group "<title>"` prints a section heading to group related steps.
 - The command runs under `eval` (pipes/quotes/jq work); a non-zero exit (e.g. an
   intentional error demo) is tolerated, not fatal.

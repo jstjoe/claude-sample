@@ -11,7 +11,8 @@ description: >
   timestamped MP4 + GIF. Triggers on: "screen recording", "record a demo",
   "self-driving demo", "record-demo.sh", "make a GIF", "screenshot workflow",
   "compress video", "trim clip", "crop recording", "annotate screenshot",
-  "redact/blur screenshot", "ffmpeg", "imagemagick", "magick".
+  "redact/blur screenshot", "encode/prep a recording for Remotion", "ffmpeg",
+  "imagemagick", "magick".
 ---
 
 # Demo Media: ffmpeg + ImageMagick
@@ -87,6 +88,37 @@ Design decisions worth keeping (each fixed a real failure):
 Everything except the steps file — capture, screen selection, audio, trimming,
 the MP4+GIF pipeline — is generic and reusable across projects. `--no-record`
 runs the steps without recording so you can rehearse pacing first.
+
+## → Remotion: wrap a recording in branded titles/motion
+
+To turn a raw demo into a polished, titled video (intro card, brand colors,
+crossfade into the screen capture), pair this skill with the sibling
+**remotion-best-practices** skill — build the composition in React, drop the
+recording into the project's `public/`, and render to MP4.
+
+One gotcha bridges the two: a raw retina capture is **5K with sparse keyframes**,
+and Remotion Studio seeks frame-by-frame — so it scrubs at a few fps and renders
+slowly. Encode a Remotion-friendly copy first: downscale and lay down dense
+keyframes.
+
+`record-demo.sh --remotion` does exactly this, emitting `<stamp>.remotion.mp4`
+next to the usual outputs (add `--remotion` to `--reuse` to convert an old take).
+The equivalent one-off command:
+
+```bash
+ffmpeg -i raw.mov -vf "scale=-2:1080:flags=lanczos" \
+  -c:v libx264 -crf 20 -preset medium -g 15 -keyint_min 15 -sc_threshold 0 \
+  -pix_fmt yuv420p -movflags +faststart demo.mp4
+```
+
+- `scale=-2:1080` — downscale to 1080p; `-2` keeps aspect and forces an even
+  width (required by yuv420p). Match the height to your composition.
+- `-g 15 -keyint_min 15 -sc_threshold 0` — a keyframe every 15 frames (~0.5s at
+  30fps), regularly spaced. This is what makes Studio scrubbing smooth. Denser
+  keyframes cost file size; ~0.5s is a good balance.
+- Then in the composition: `import {Video} from '@remotion/media'` and
+  `<Video src={staticFile('demo.mp4')} />`. See the remotion skill for titles,
+  transitions, and rendering.
 
 The sections below are the underlying ffmpeg/ImageMagick recipes the script is
 built from — reach for them directly for one-off edits or non-recording tasks.

@@ -34,6 +34,10 @@
 #   - Every run writes UNIQUE, timestamped files into OUTDIR (default ./demo-out):
 #     <stamp>.raw.mov / <stamp>.mp4 / <stamp>.gif  — never overwrites a prior run.
 #   - Add a label with --tag NAME -> <stamp>-NAME.{mp4,gif,raw.mov}.
+#   - --remotion also emits <stamp>.remotion.mp4: downscaled + dense-keyframe
+#     encode that scrubs smoothly in Remotion Studio. Drop it into a Remotion
+#     project's public/ to wrap the demo in branded titles/motion (pairs with the
+#     remotion-best-practices skill). Works with --reuse too (no re-record).
 #
 # Usage:
 #   ./record-demo.sh --steps demo/steps.sh        # pick screen (if >1), full screen, no audio
@@ -41,14 +45,17 @@
 #   ./record-demo.sh --steps demo/steps.sh --area 1400:900:40:120 --tag konnect
 #   ./record-demo.sh --list                       # list screens + audio devices, exit
 #   ./record-demo.sh --steps demo/steps.sh --no-record   # rehearse the steps, no recording
+#   ./record-demo.sh --steps demo/steps.sh --remotion    # + a Remotion-ready encode for public/
 #   ./record-demo.sh --reuse demo-out/<stamp>.raw.mov    # reprocess a capture (no steps needed)
+#   ./record-demo.sh --reuse demo-out/<stamp>.raw.mov --remotion   # add a Remotion encode to an old take
 #
 # First real capture triggers a macOS "Screen Recording" permission prompt for
 # your terminal app — grant it (System Settings > Privacy & Security), re-run.
 #
 # Env-var equivalents (flags win): STEPS, DEVICE, SCREEN_NAME, AUDIO, AUDIO_DEVICE,
 #   AREA/CROP, TAG, FPS, OUTDIR, SETTLE, PAUSE_BEFORE, PAUSE_AFTER, RECORD,
-#   TRIM_START, TRIM_END, MP4_SPEED, GIF_SPEED, GIF_FPS, GIF_WIDTH, MP4_CRF.
+#   TRIM_START, TRIM_END, MP4_SPEED, GIF_SPEED, GIF_FPS, GIF_WIDTH, MP4_CRF,
+#   REMOTION, REMOTION_HEIGHT, REMOTION_GOP.
 set -euo pipefail
 
 DEVICE="${DEVICE:-}"                 # explicit avfoundation screen index (blank = auto/prompt)
@@ -71,6 +78,9 @@ GIF_SPEED="${GIF_SPEED:-2.0}"
 GIF_FPS="${GIF_FPS:-12}"
 GIF_WIDTH="${GIF_WIDTH:-1000}"
 MP4_CRF="${MP4_CRF:-18}"
+REMOTION="${REMOTION:-0}"           # 1 = also emit a Remotion-ready encode (see --remotion)
+REMOTION_HEIGHT="${REMOTION_HEIGHT:-1080}"  # target height for the Remotion encode (width auto, aspect kept)
+REMOTION_GOP="${REMOTION_GOP:-}"    # keyframe interval for the Remotion encode (blank => fps/2 ≈ every 0.5s)
 REUSE=""; LIST=0
 
 usage() { awk 'NR>=2 && /^set -euo/{exit} NR>=2{sub(/^# ?/,"");print}' "$0"; }
@@ -89,6 +99,8 @@ while [ $# -gt 0 ]; do
     --fps)          FPS="${2:?}"; shift 2;;
     --outdir)       OUTDIR="${2:?}"; shift 2;;
     --no-record)    RECORD=0; shift;;
+    --remotion)     REMOTION=1; shift;;
+    --remotion-height) REMOTION=1; REMOTION_HEIGHT="${2:?--remotion-height needs a number}"; shift 2;;
     --reuse)        REUSE="${2:?--reuse needs a file}"; shift 2;;
     --list)         LIST=1; shift;;
     -h|--help)      usage; exit 0;;
@@ -214,6 +226,7 @@ mkdir -p "$OUTDIR"
 STAMP=$(date +%Y%m%d-%H%M%S)
 BASE="$STAMP${TAG:+-$TAG}"
 MP4="$OUTDIR/$BASE.mp4"; GIF="$OUTDIR/$BASE.gif"; PAL="$OUTDIR/$BASE.palette.png"
+RMP4="$OUTDIR/$BASE.remotion.mp4"   # Remotion-ready encode (only written with --remotion)
 
 bold=$(tput bold 2>/dev/null || true); dim=$(tput dim 2>/dev/null || true)
 cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
@@ -388,10 +401,34 @@ ffmpeg -hide_banner -y ${seek[@]+"${seek[@]}"} -i "$RAW" -vf "${gif_vf},paletteg
 ffmpeg -hide_banner -y ${seek[@]+"${seek[@]}"} -i "$RAW" -i "$PAL" -lavfi "${gif_vf} [x]; [x][1:v] paletteuse" "$GIF"
 rm -f "$PAL"
 
+# ── OPTIONAL: raw -> Remotion-ready encode ───────────────────────────────────
+# A raw retina capture is huge (often 5K) with sparse keyframes, so Remotion
+# Studio — which seeks frame-by-frame — scrubs at a few fps and renders slowly.
+# This encode fixes both: downscale to REMOTION_HEIGHT and lay down dense
+# keyframes (every ~0.5s) so every frame is cheap to seek. Real-time (no speed
+# change) so the clip's frames line up 1:1 with the composition timeline. Drop
+# the file into your Remotion project's public/ and reference with staticFile().
+if [ "$REMOTION" = "1" ]; then
+  gop="${REMOTION_GOP:-$(( FPS / 2 ))}"; [ "$gop" -ge 1 ] || gop=1
+  # Audio only if the raw has a track (kept real-time; Remotion controls timing).
+  rmp4_a=(-an)
+  if [ "$AUDIO" = "1" ]; then
+    has_ra=$( { ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$RAW" 2>/dev/null | head -1; } || true )
+    [ -n "$has_ra" ] && rmp4_a=(-c:a aac -b:a 128k)
+  fi
+  echo ">> writing $RMP4 (Remotion-ready: ${REMOTION_HEIGHT}p, keyframe every ${gop}f, faststart)"
+  # scale=-2 keeps aspect and forces an even width (required by yuv420p/libx264).
+  ffmpeg -hide_banner -y ${seek[@]+"${seek[@]}"} -i "$RAW" \
+    -vf "${crop_vf}scale=-2:${REMOTION_HEIGHT}:flags=lanczos" "${rmp4_a[@]}" \
+    -c:v libx264 -crf 20 -preset medium -g "$gop" -keyint_min "$gop" -sc_threshold 0 \
+    -pix_fmt yuv420p -movflags +faststart "$RMP4"
+fi
+
 echo
 echo ">> done:"
 echo "   MP4 (edit + narrate): $MP4"
 echo "   GIF (inline):         $GIF"
+[ "$REMOTION" = "1" ] && echo "   Remotion (public/):   $RMP4"
 echo
 echo ">> REDACT before sharing if any step showed real secrets/PII. Blur a region, e.g.:"
 echo "     magick frame.png -fill black -draw \"rectangle 300,220 700,260\" safe.png"

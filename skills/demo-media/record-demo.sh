@@ -256,20 +256,19 @@ hl() {
   printf '%s' "$s"
 }
 
-# Provided to the steps file: render one example — a heading, an optional dim
-# note, the command (with any -d JSON payload broken onto its own highlighted
-# line), then the result under a labeled, colored rule.
+# Provided to the steps file: render one example. A bold, flush-left heading is
+# the top level; the note, command, and labeled output are indented under it, so
+# containment (not a second heading style) shows what belongs to the example.
 #   step "<title>" "<command>" [color] [result-label] [note]
-#   color        heading/rule color (default green)
-#   result-label label over the output rule (default "Response"; e.g. "Prompt"
-#                for echo routes where the output IS the sent payload)
+#   color        heading + label color (default green)
+#   result-label light label over the output (default "Response"; e.g. "Prompt")
 #   note         a grayed-out one-liner shown before the command
 step() {
   local title="$1" cmd="$2" color="${3:-$c_green}" label="${4:-Response}" note="${5:-}"
 
-  # Prominent per-example heading + optional dim note describing the call.
+  # Level 1: flush-left heading. Everything below is indented 3 spaces.
   printf '\n\n%s▎ %s%s\n' "$bold$color" "$title" "$reset"
-  [ -n "$note" ] && printf '%s# %s%s\n' "$dim" "$note" "$reset"
+  [ -n "$note" ] && printf '   %s# %s%s\n' "$dim" "$note" "$reset"
   printf '\n'
 
   # Command, dim — but pull the -d '<payload>' onto its own bright line so the
@@ -278,20 +277,19 @@ step() {
   if [[ $cmd == *"-d '"* ]]; then
     local before="${cmd%%-d \'*}" rest="${cmd#*-d \'}"
     local payload="${rest%%\'*}" after="${rest#*\'}"
-    printf '%s$ %s-d \047%s\n\n'   "$dim" "$before" "$reset"
-    printf '      %s%s%s\n\n'      "$bold$c_json" "$(hl "$payload" "$bold$c_json")" "$reset"
-    printf '%s   \047%s%s\n'       "$dim" "$after" "$reset"
+    printf '   %s$ %s-d \047%s\n\n'  "$dim" "$before" "$reset"
+    printf '       %s%s%s\n\n'       "$bold$c_json" "$(hl "$payload" "$bold$c_json")" "$reset"
+    printf '     %s\047%s%s\n'       "$dim" "$after" "$reset"
   else
-    printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
+    printf '   %s$ %s%s\n' "$dim" "$cmd" "$reset"
   fi
   sleep "$PAUSE_BEFORE"
 
-  # Run, capture, and show the result under a colored label (no border rules).
+  # Level 2: a light (non-bold) label + the output, both indented under the heading.
   local out; out="$(eval "$cmd" 2>&1)" || true
   [ -n "$out" ] || out="(no output)"
-  printf '\n%s%s%s\n' "$bold$color" "$label" "$reset"          # colored label
-  printf '%s%s%s\n' "$color" "$(rule "${#label}")" "$reset"    # underline, label width
-  printf '%s\n' "$(hl "$out")"
+  printf '\n   %s%s%s\n' "$color" "$label" "$reset"
+  printf '%s\n' "$(hl "$out")" | sed 's/^/   /'
   sleep "$PAUSE_AFTER"
 }
 

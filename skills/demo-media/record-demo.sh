@@ -59,11 +59,11 @@ FPS="${FPS:-30}"
 OUTDIR="${OUTDIR:-./demo-out}"
 TAG="${TAG:-}"
 STEPS="${STEPS:-}"                   # demo steps file (blank = auto-detect ./demo-steps.sh, ./demo/steps.sh)
-SETTLE="${SETTLE:-2}"
+SETTLE="${SETTLE:-2}"               # warmup before the demo starts; also the default lead-in trimmed
 PAUSE_BEFORE="${PAUSE_BEFORE:-1.2}"
 PAUSE_AFTER="${PAUSE_AFTER:-2.5}"
 RECORD="${RECORD:-1}"
-TRIM_START="${TRIM_START:-}"
+TRIM_START="${TRIM_START:-}"        # trim off the START; blank => auto-trim the SETTLE lead-in, 0 => keep all
 TRIM_END="${TRIM_END:-}"
 CROP="${CROP:-${AREA:-}}"            # whole screen when blank
 MP4_SPEED="${MP4_SPEED:-1.0}"
@@ -301,7 +301,7 @@ else
     </dev/null >"$FFLOG" 2>&1 &
   FFPID=$!
   trap 'kill -INT "$FFPID" 2>/dev/null || true' EXIT
-  sleep "$SETTLE"     # avfoundation warmup — screen is already clear, nothing stale is captured
+  sleep "$SETTLE"     # avfoundation warmup; this lead-in is trimmed off the outputs in post
   run_demo
   kill -INT "$FFPID" 2>/dev/null || true    # SIGINT => ffmpeg finalizes the moov atom cleanly
   wait "$FFPID" 2>/dev/null || true
@@ -312,9 +312,15 @@ else
 fi
 
 # ── PROCESS: raw -> mp4 + gif ────────────────────────────────────────────────
+# Auto-trim the warmup lead-in. The capture runs for SETTLE seconds before the
+# demo banner (avfoundation warmup); terminals that keep prior scrollback/blocks
+# visible mean that window records leftover terminal content no `clear` reliably
+# blanks. Trimming SETTLE off the start drops it deterministically, whatever the
+# terminal does. Override with TRIM_START (e.g. 00:00:03); TRIM_START=0 keeps all.
+lead="${TRIM_START:-$SETTLE}"
 seek=()
-[ -n "$TRIM_START" ] && seek+=(-ss "$TRIM_START")
-[ -n "$TRIM_END" ]   && seek+=(-to "$TRIM_END")   # ${seek[@]+...} guards bash 3.2 empty-array + set -u
+{ [ -n "$lead" ] && [ "$lead" != "0" ]; } && seek+=(-ss "$lead")
+[ -n "$TRIM_END" ] && seek+=(-to "$TRIM_END")     # ${seek[@]+...} guards bash 3.2 empty-array + set -u
 crop_vf=""; [ -n "$CROP" ] && crop_vf="crop=${CROP},"
 pts() { awk -v s="$1" 'BEGIN{ printf "%.6f", 1.0/s }'; }
 

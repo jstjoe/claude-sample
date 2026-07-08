@@ -76,6 +76,11 @@ Design decisions worth keeping (each fixed a real failure):
 - **Unique timestamped output** into `demo-out/<stamp>[-tag].{raw.mov,mp4,gif}` —
   never overwrites a prior take. The raw is always full-screen, so `--reuse` lets
   you re-crop / re-speed without re-recording.
+- **Warmup lead-in auto-trimmed.** The capture runs for `SETTLE`s before the demo
+  banner; terminals that keep prior scrollback/blocks visible record that leftover
+  content no `clear` reliably blanks. The outputs trim `SETTLE`s off the start by
+  default (the raw keeps everything). `TRIM_START=0` disables; set it to a duration
+  to trim a different amount.
 - First capture triggers a macOS **Screen Recording** permission prompt for your
   terminal app — grant it (System Settings › Privacy & Security), then re-run.
 

@@ -11,6 +11,9 @@ Each skill is a directory holding a `SKILL.md` (plus any supporting files):
 skills/
   demo-media/
     SKILL.md
+  remotion-best-practices/
+    SKILL.md
+    rules/
 ```
 
 ## Use on a new machine
@@ -33,3 +36,22 @@ change. Re-run `./install.sh` any time you add a new skill.
 - **demo-media** — record, edit, compress, and annotate demo videos and
   screenshots with ffmpeg and ImageMagick (GIFs, MP4 compression, cropping,
   annotation, PII redaction).
+- **remotion-best-practices** — domain knowledge for building videos in
+  React/TypeScript with [Remotion](https://remotion.dev) and rendering to MP4:
+  animation with `interpolate`/`spring`, scene sequencing, transitions,
+  captions, audio, fonts, effects, and dynamic duration. Pairs well with
+  **demo-media** — record a raw demo, then wrap it in branded titles/motion.
+
+### Vendored skills
+
+`remotion-best-practices` is vendored from the upstream
+[remotion-dev/skills](https://github.com/remotion-dev/skills) repo, not authored
+here. Don't hand-edit it — refresh from upstream instead:
+
+```bash
+npx -y skills@latest add remotion-dev/skills -y   # re-pull latest into ~/.agents/skills
+cp -RL ~/.claude/skills/remotion-best-practices skills/   # re-vendor into this repo
+```
+
+Like any third-party skill, it runs with full agent permissions — review before
+use.

@@ -1,6 +1,20 @@
 # claude + github sample
 
-A small guide to getting Claude and GitHub playing nice.
+A small guide to getting Claude and GitHub playing nice, plus a growing
+collection of personal Claude Code tooling — skills, scripts, and GitHub
+Actions.
+
+## Skills
+
+Version-controlled [Claude Code skills](https://docs.claude.com/en/docs/claude-code/skills),
+symlinked live via `./install.sh`. See [skills/README.md](skills/README.md) for
+the full list and setup. Currently:
+
+- **demo-media** — record, compress, and annotate demo videos and screenshots
+  (ffmpeg + ImageMagick), including the turnkey `record-demo.sh` recorder.
+- **remotion-best-practices** — build branded videos in React with
+  [Remotion](https://remotion.dev) and render to MP4. Pairs with demo-media to
+  turn a raw screen recording into a polished, titled clip.
 
 ## Local shell
 

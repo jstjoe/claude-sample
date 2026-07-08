@@ -69,6 +69,8 @@ STEPS="${STEPS:-}"                   # demo steps file (blank = auto-detect ./de
 SETTLE="${SETTLE:-2}"               # warmup before the demo starts; also the default lead-in trimmed
 PAUSE_BEFORE="${PAUSE_BEFORE:-1.2}"
 PAUSE_AFTER="${PAUSE_AFTER:-2.5}"
+HL_SENSITIVE="${HL_SENSITIVE:-}"                       # regex of PII to highlight red in payload/output (steps file sets it)
+HL_TOKENS="${HL_TOKENS:-\[[A-Za-z0-9_]+\]}"           # regex of tokens to highlight green (default: [BRACKETED] tokens)
 RECORD="${RECORD:-1}"
 TRIM_START="${TRIM_START:-}"        # trim off the START; blank => auto-trim the SETTLE lead-in, 0 => keep all
 TRIM_END="${TRIM_END:-}"
@@ -234,26 +236,39 @@ cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
 c_red=$(tput setaf 1 2>/dev/null || true)
 c_green=$(tput setaf 2 2>/dev/null || true)
 c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
-c_json=$(tput setaf 3 2>/dev/null || true)         # request payload / JSON highlight
+c_purple=$(tput setaf 99 2>/dev/null || tput setaf 5 2>/dev/null || true)   # Skyflow-ish purple (title/headings)
+c_json=$(tput setaf 7 2>/dev/null || true)         # request payload / JSON (white)
 rev=$(tput rev 2>/dev/null || true)                # reverse video (closing banner)
+# Dusty highlight tones — the ONLY red/green in the demo, reserved for data.
+hl_red=$(tput setaf 174 2>/dev/null || tput setaf 1 2>/dev/null || true)    # dusty rose (PII)
+hl_green=$(tput setaf 108 2>/dev/null || tput setaf 2 2>/dev/null || true)  # sage (tokens)
 
 # Emit N box-drawing horizontals (nothing when N<=0). Used to size response rules.
 rule() { local n="${1:-0}"; [ "$n" -gt 0 ] && printf '─%.0s' $(seq 1 "$n") || true; }
 
-# Provided to the steps file: render one example — a heading, an optional dim
-# note, the command (with any -d JSON payload broken onto its own highlighted
-# line), then the result under a labeled, colored rule.
+# Highlight matches in $1: HL_SENSITIVE (PII) in dusty red, HL_TOKENS (Skyflow
+# tokens) in sage green. $2 = base color to resume after each match (so surrounding
+# text keeps its color). Steps files set HL_SENSITIVE; HL_TOKENS defaults to bracket tokens.
+hl() {
+  local s="$1" base="${2:-}"
+  [ -n "$HL_SENSITIVE" ] && s=$(printf '%s' "$s" | sed -E "s/(${HL_SENSITIVE})/${bold}${hl_red}\\1${reset}${base}/g")
+  [ -n "$HL_TOKENS" ]    && s=$(printf '%s' "$s" | sed -E "s/(${HL_TOKENS})/${bold}${hl_green}\\1${reset}${base}/g")
+  printf '%s' "$s"
+}
+
+# Provided to the steps file: render one example. A bold, flush-left heading is
+# the top level; the note, command, and labeled output are indented under it, so
+# containment (not a second heading style) shows what belongs to the example.
 #   step "<title>" "<command>" [color] [result-label] [note]
-#   color        heading/rule color (default green)
-#   result-label label over the output rule (default "Response"; e.g. "Prompt"
-#                for echo routes where the output IS the sent payload)
+#   color        heading + label color (default green)
+#   result-label light label over the output (default "Response"; e.g. "Prompt")
 #   note         a grayed-out one-liner shown before the command
 step() {
   local title="$1" cmd="$2" color="${3:-$c_green}" label="${4:-Response}" note="${5:-}"
 
-  # Prominent per-example heading + optional dim note describing the call.
+  # Level 1: flush-left heading. Everything below is indented 3 spaces.
   printf '\n\n%s▎ %s%s\n' "$bold$color" "$title" "$reset"
-  [ -n "$note" ] && printf '%s# %s%s\n' "$dim" "$note" "$reset"
+  [ -n "$note" ] && printf '   %s# %s%s\n' "$dim" "$note" "$reset"
   printf '\n'
 
   # Command, dim — but pull the -d '<payload>' onto its own bright line so the
@@ -262,32 +277,19 @@ step() {
   if [[ $cmd == *"-d '"* ]]; then
     local before="${cmd%%-d \'*}" rest="${cmd#*-d \'}"
     local payload="${rest%%\'*}" after="${rest#*\'}"
-    printf '%s$ %s-d \047%s\n\n'   "$dim" "$before" "$reset"
-    printf '      %s%s%s\n\n'      "$bold$c_json" "$payload" "$reset"
-    printf '%s   \047%s%s\n'       "$dim" "$after" "$reset"
+    printf '   %s$ %s-d \047%s\n\n'  "$dim" "$before" "$reset"
+    printf '       %s%s%s\n\n'       "$bold$c_json" "$(hl "$payload" "$bold$c_json")" "$reset"
+    printf '     %s\047%s%s\n'       "$dim" "$after" "$reset"
   else
-    printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
+    printf '   %s$ %s%s\n' "$dim" "$cmd" "$reset"
   fi
   sleep "$PAUSE_BEFORE"
 
-  # Run, capture, and show the response between rules sized to the content width
-  # (longest line, capped at the terminal). Labeled top rule + bottom rule, no
-  # side borders — those looked cut off on wide screens.
+  # Level 2: a light (non-bold) label + the output, both indented under the heading.
   local out; out="$(eval "$cmd" 2>&1)" || true
   [ -n "$out" ] || out="(no output)"
-  local W=24 line
-  while IFS= read -r line || [ -n "$line" ]; do
-    [ "${#line}" -gt "$W" ] && W="${#line}"
-  done <<< "$out"
-  # Cap to the terminal width only when attached to a real terminal; when piped
-  # (no tty) tput reports 80 and would shrink the rules below the content.
-  if [ -t 1 ]; then
-    local cols; cols=$(tput cols 2>/dev/null || echo 200)
-    [ "$W" -gt $((cols - 1)) ] && W=$((cols - 1))
-  fi
-  printf '\n%s── %s %s%s\n' "$bold$color" "$label" "$(rule $((W - ${#label} - 4)))" "$reset"  # "── <label> " = len+4
-  printf '%s\n' "$out"
-  printf '%s%s%s\n' "$color" "$(rule "$W")" "$reset"
+  printf '\n   %s%s%s\n' "$color" "$label" "$reset"
+  printf '%s\n' "$(hl "$out")" | sed 's/^/   /'
   sleep "$PAUSE_AFTER"
 }
 
@@ -311,7 +313,9 @@ run_demo() {
   source "$STEPS"
   command -v demo >/dev/null 2>&1 || { echo "!! '$STEPS' must define a demo() function (see the example)." >&2; exit 1; }
   clear 2>/dev/null || true
-  printf '%s%s%s\n' "$bold" "${DEMO_TITLE:-Demo}" "$reset"
+  local _t="${DEMO_TITLE:-Demo}"
+  printf '%s%s%s\n' "$bold$c_purple" "$_t" "$reset"
+  printf '%s%s%s\n' "$c_purple" "$(rule "${#_t}")" "$reset"   # purple underline, title width
   sleep "$PAUSE_AFTER"
   demo
   printf '\n\n%s%s  ✓  AI APIs secured!  %s\n\n' "$bold$c_green" "$rev" "$reset"

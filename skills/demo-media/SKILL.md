@@ -60,6 +60,7 @@ demo() {
 - Optional 3rd arg colors the heading: `$c_red`, `$c_green`, `$c_orange` (default green).
 - 4th arg labels the output rule (default `Response`; e.g. `Prompt` when the output echoes the sent payload); 5th is a grayed-out note printed before the command.
 - Response rules span the content width, capped at the terminal width.
+- `HL_SENSITIVE` (a regex the steps file sets) highlights matching strings red in payloads + output; `HL_TOKENS` highlights matches green (defaults to `[BRACKETED]` tokens). The JSON payload renders white.
 - `group "<title>"` prints a section heading to group related steps.
 - The command runs under `eval` (pipes/quotes/jq work); a non-zero exit (e.g. an
   intentional error demo) is tolerated, not fatal.

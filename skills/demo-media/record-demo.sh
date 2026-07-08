@@ -221,15 +221,43 @@ cyan=$(tput setaf 6 2>/dev/null || true); reset=$(tput sgr0 2>/dev/null || true)
 c_red=$(tput setaf 1 2>/dev/null || true)
 c_green=$(tput setaf 2 2>/dev/null || true)
 c_orange=$(tput setaf 208 2>/dev/null || tput setaf 3 2>/dev/null || true)
+c_json=$(tput setaf 3 2>/dev/null || true)         # request payload / JSON highlight
+rev=$(tput rev 2>/dev/null || true)                # reverse video (closing banner)
 
-# Provided to the steps file: print a labeled command, pause, run it, pause.
-# Optional 3rd arg = heading color (e.g. $c_red / $c_orange); defaults to green.
+# Provided to the steps file: render one example — a heading, the command (with
+# any -d JSON payload broken onto its own highlighted line), then the response in
+# a labeled, colored box. Optional 3rd arg = heading/box color (default green).
 step() {
   local title="$1" cmd="$2" color="${3:-$c_green}"
-  printf '\n%s━━ %s ━━%s\n' "$bold$color" "$title" "$reset"
-  printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
+
+  # Prominent per-example heading.
+  printf '\n\n%s▎ %s%s\n\n' "$bold$color" "$title" "$reset"
+
+  # Command, dim — but pull the -d '<payload>' onto its own bright line so the
+  # JSON stands out (a break before and after). JSON has no single quotes, so the
+  # closing ' is unambiguous. Non-curl commands print as-is.
+  if [[ $cmd == *"-d '"* ]]; then
+    local before="${cmd%%-d \'*}" rest="${cmd#*-d \'}"
+    local payload="${rest%%\'*}" after="${rest#*\'}"
+    printf '%s$ %s-d \047%s\n\n'   "$dim" "$before" "$reset"
+    printf '      %s%s%s\n\n'      "$bold$c_json" "$payload" "$reset"
+    printf '%s   \047%s%s\n'       "$dim" "$after" "$reset"
+  else
+    printf '%s$ %s%s\n' "$dim" "$cmd" "$reset"
+  fi
   sleep "$PAUSE_BEFORE"
-  eval "$cmd" || true          # a step failing (e.g. an intentional non-2xx) must not abort
+
+  # Run, capture, and show the response in a labeled box tinted by the step color.
+  local out; out="$(eval "$cmd" 2>&1)" || true
+  printf '\n%s┌─ Response ────────────────────────────────%s\n' "$bold$color" "$reset"
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out" | while IFS= read -r line || [ -n "$line" ]; do
+      printf '%s│%s %s\n' "$color" "$reset" "$line"
+    done
+  else
+    printf '%s│%s (no output)\n' "$color" "$reset"
+  fi
+  printf '%s└───────────────────────────────────────────%s\n' "$color" "$reset"
   sleep "$PAUSE_AFTER"
 }
 
@@ -256,7 +284,7 @@ run_demo() {
   printf '%s%s%s\n' "$bold" "${DEMO_TITLE:-Demo}" "$reset"
   sleep "$PAUSE_AFTER"
   demo
-  printf '\n%s✓ demo complete%s\n' "$bold$cyan" "$reset"
+  printf '\n\n%s%s  ✓  AI APIs secured!  %s\n\n' "$bold$c_green" "$rev" "$reset"
   sleep "$PAUSE_AFTER"
 }
 

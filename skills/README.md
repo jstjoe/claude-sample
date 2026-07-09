@@ -9,6 +9,14 @@ Each skill is a directory holding a `SKILL.md` (plus any supporting files):
 
 ```
 skills/
+  vhs-demos/
+    SKILL.md
+    config.tape
+    demo.example.tape
+  playwright-demos/
+    SKILL.md
+    playwright-record.mjs
+    flow.example.mjs
   demo-media/
     SKILL.md
   remotion-best-practices/
@@ -33,6 +41,16 @@ change. Re-run `./install.sh` any time you add a new skill.
 
 ## Skills
 
+See **[../docs/automated-demos.md](../docs/automated-demos.md)** for how the four
+demo skills fit together and which one to reach for.
+
+- **vhs-demos** — record reproducible terminal demos as GIF/MP4/WebM from a
+  declarative `.tape` script with [VHS](https://github.com/charmbracelet/vhs).
+  Ships a shared `config.tape` and a `demo.example.tape` template.
+- **playwright-demos** — local browser automation for demo capture: a turnkey
+  `playwright-record.mjs` that records a scripted flow to video (animated cursor,
+  action/chapter overlays via Playwright's screencast API), plus screenshots and
+  `codegen` authoring. Ships a `flow.example.mjs` template.
 - **demo-media** — record, edit, compress, and annotate demo videos and
   screenshots with ffmpeg and ImageMagick (GIFs, MP4 compression, cropping,
   annotation, PII redaction).

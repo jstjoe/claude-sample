@@ -40,7 +40,7 @@ import { pathToFileURL } from 'node:url';
 // ---- args -----------------------------------------------------------------
 function parseArgs(argv) {
   const a = { out: 'demo-out', size: '1280x800', slowmo: 400, scale: 1, pause: 600,
-              headless: false, basic: false, cursor: 'pointer', mp4: false, gif: false,
+              headless: false, basic: false, cursor: 'pointer', hold: 1400, mp4: false, gif: false,
               keepWebm: true, gifWidth: 1000, gifFps: 12 };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i], next = () => argv[++i];
@@ -56,6 +56,7 @@ function parseArgs(argv) {
       case '--shot':      a.shot = next(); break;          // screenshot-only mode: output filename
       case '--tag':       a.tag = next(); break;           // label appended to output names
       case '--cursor':    a.cursor = next(); break;        // 'pointer' (default) | 'none'
+      case '--hold':      a.hold = +next(); break;         // ms the cursor/action label lingers (default 1400)
       case '--headless':  a.headless = true; break;
       case '--headed':    a.headless = false; break;
       case '--basic':     a.basic = true; break;           // recordVideo instead of screencast
@@ -154,11 +155,49 @@ const context = await browser.newContext(
   useScreencast ? base : { ...base, recordVideo: { dir: outDir, size: { width: w, height: h } } });
 const page = await context.newPage();
 
+// An always-visible cursor that follows the mouse with a CSS glide + a click
+// pulse. Injected into the page so it records reliably as plain DOM — the native
+// screencast pointer only appears at discrete actions, so it reads as teleporting.
+const CURSOR_SCRIPT = () => {
+  const mount = () => {
+    if (document.getElementById('__demoCursor')) return;
+    const st = document.createElement('style');
+    st.textContent = `@keyframes __demoPulse{from{opacity:.55;transform:translate(-50%,-50%) scale(.3)}to{opacity:0;transform:translate(-50%,-50%) scale(1)}}`;
+    document.head.appendChild(st);
+    const c = document.createElement('div');
+    c.id = '__demoCursor';
+    c.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))"><path d="M0 0 L0 17 L4.7 12.7 L7.6 19.2 L10 18.1 L7.1 11.7 L12.6 11.4 Z" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+    const GLIDE = 240;   // ms; keep in sync with the pulse delay below
+    Object.assign(c.style, { position: 'fixed', left: '0', top: '0', zIndex: '2147483647',
+      pointerEvents: 'none', transition: `transform ${GLIDE}ms cubic-bezier(.22,.61,.36,1)`,
+      transform: 'translate(-60px,-60px)', willChange: 'transform' });
+    document.body.appendChild(c);
+    addEventListener('mousemove', (e) => { c.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`; }, true);
+    // The cursor glides for GLIDE ms, so its VISUAL position lags the real one. Delay the
+    // click pulse by GLIDE so it blooms exactly as the cursor lands — not before it arrives.
+    addEventListener('mousedown', (e) => {
+      const x = e.clientX, y = e.clientY;
+      setTimeout(() => {
+        const p = document.createElement('div');
+        Object.assign(p.style, { position: 'fixed', left: x + 'px', top: y + 'px',
+          width: '42px', height: '42px', border: '3px solid #8b6dff', borderRadius: '50%',
+          zIndex: '2147483646', pointerEvents: 'none', animation: '__demoPulse .45s ease-out forwards' });
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 500);
+      }, GLIDE);
+    }, true);
+  };
+  if (document.body) mount(); else addEventListener('DOMContentLoaded', mount);
+};
+
 if (useScreencast) {
   // screencast writes straight to our path; annotate = per-action title overlay.
   await page.screencast.start({ path: webmPath, size: { width: w, height: h },
-                                annotate: { position: 'top-right', fontSize: 16 } });
-  await page.screencast.showActions({ cursor: args.cursor });   // animated pointer + click decorations
+                                annotate: { position: 'top-right', fontSize: 16, duration: args.hold } });
+  // No showActions(): its native red click marker fires at the true mouse point,
+  // which leads our gliding cursor and reads as a click before arrival. Titles come
+  // from start({annotate}); the pointer + click pulse are our injected cursor.
+  if (args.cursor !== 'none') await page.addInitScript(CURSOR_SCRIPT);   // runs on the flow's goto
 }
 
 // helpers handed to the flow: step() paces + narrates, chapter() shows a card, shot() grabs a still.
@@ -181,6 +220,18 @@ const shot = async (name) => {
   console.log(`📸  ${f}`);
   return f;
 };
+// move(): glide the cursor to a Locator (or {x,y}) in steps so the travel is visible
+// on camera, not a teleport. The screencast pointer follows the mouse.
+const move = async (target, { steps = 4 } = {}) => {
+  let x, y;
+  if (target && typeof target.boundingBox === 'function') {
+    const b = await target.boundingBox();
+    if (!b) throw new Error('move(): target has no bounding box (not visible)');
+    x = b.x + b.width / 2; y = b.y + b.height / 2;
+  } else { ({ x, y } = target); }
+  await page.mouse.move(x, y, { steps });
+  return { x, y };
+};
 
 let flowErr;
 try {
@@ -190,7 +241,7 @@ try {
     const mod = await import(pathToFileURL(flowPath).href);
     const demo = mod.default ?? mod.demo;
     if (typeof demo !== 'function') throw new Error(`${flowPath} must default-export an async function`);
-    await demo({ page, context, step, chapter, shot, log, args, devices });
+    await demo({ page, context, step, chapter, shot, move, log, args, devices });
   } else if (args.url) {
     await page.goto(args.url, { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);

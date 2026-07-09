@@ -26,6 +26,16 @@ terminal demos; `record-demo.sh` is the escape hatch for "record my actual scree
 
 ## Install everything (one time)
 
+**Fastest path — one command, installs + verifies:**
+
+```bash
+./scripts/bootstrap-demos.sh        # or: /bootstrap-demos in Claude Code
+```
+
+It's idempotent and self-verifying: installs the tools below, links the skills,
+then smoke-tests by rendering a real VHS GIF and a Playwright video. `--check`
+verifies without installing. Or do it by hand:
+
 ```bash
 # Terminal demos — VHS (+ its ttyd/ffmpeg deps) and the demo font
 brew install vhs

@@ -23,6 +23,9 @@ the full list and setup. Currently:
 
 New to this? **[docs/automated-demos.md](docs/automated-demos.md)** is the map —
 which tool to reach for and copy-paste recipes for the common end-to-end flows.
+To set up a machine for recording, run `./scripts/bootstrap-demos.sh` (installs +
+verifies the whole toolchain), or just tell your Claude agent *"I want to make
+demos"* — [`CLAUDE.md`](CLAUDE.md) instructs it to bootstrap and verify for you.
 
 ## Local shell
 

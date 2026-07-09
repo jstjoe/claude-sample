@@ -7,3 +7,6 @@ test-results/
 # Demo capture artifacts (regenerated; don't commit takes)
 demo-out/
 *.raw.mov
+
+# Claude Code — personal, machine-local overrides (never shared)
+.claude/settings.local.json

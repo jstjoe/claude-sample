@@ -55,17 +55,19 @@ node skills/playwright-demos/playwright-record.mjs --flow demo/flow.mjs --headle
 node skills/playwright-demos/playwright-record.mjs --help
 ```
 
-By default it records with Playwright's **screencast** API: an **animated mouse
-cursor**, a per-action **title overlay**, and full-screen **chapter cards** — the
-affordances that make an automated run look narrated. `--basic` falls back to the
-plain `recordVideo` context option (no cursor/overlays). Outputs land in
+By default it records with Playwright's **screencast** API (per-action **title
+overlays** + full-screen **chapter cards**) and injects an **always-visible
+cursor** — an arrow that follows the mouse with a smooth glide and a click pulse,
+so an automated run reads as narrated. `--basic` falls back to the plain
+`recordVideo` context option (no overlays/cursor). Outputs land in
 `demo-out/<stamp>[-tag].{webm,mp4,gif}` and `demo-out/<stamp>-<name>.png` — never
 overwriting a prior take.
 
 Key flags (full list via `--help`): `--size WxH` (viewport + video), `--slowmo ms`
-(pacing between actions), `--pause ms` (hold after each step), `--device NAME`
-(emulation), `--cursor pointer|none`, `--scale 2` (retina screenshots),
-`--headless`, `--tag LABEL`, `--mp4`, `--gif`, `--no-webm`.
+(pacing between actions), `--pause ms` (hold after each step), `--hold ms` (how long
+title labels linger), `--device NAME` (emulation), `--cursor pointer|none` (the
+injected cursor; `none` hides it), `--scale 2` (retina screenshots), `--headless`,
+`--tag LABEL`, `--mp4`, `--gif`, `--no-webm`.
 
 ### The flow file (`--flow`)
 
@@ -73,12 +75,14 @@ A small ES module that default-exports an async function. The recorder calls it
 with a context object and drives pacing + on-screen narration:
 
 ```js
-export default async function demo({ page, step, chapter, shot, log, args }) {
+export default async function demo({ page, step, chapter, shot, move, log, args }) {
   await page.goto(args.url ?? 'http://localhost:3000', { waitUntil: 'networkidle' });
   await chapter('Widget Console', { description: 'Search, browse, drill in' });   // full-screen card
   await step('Search for widgets', async () => {
-    await page.getByPlaceholder('Search').fill('widgets');
-    await page.keyboard.press('Enter');
+    const q = page.getByPlaceholder('Search');
+    await move(q);                                   // glide the cursor over, then act
+    await q.fill('widgets');
+    await page.getByRole('button', { name: 'Search' }).click();
     await page.getByText(/results/i).waitFor();      // wait on a real signal, not a fixed sleep
   });
   await shot('results');   // demo-out/<stamp>-results.png, a still for docs/Slack
@@ -86,9 +90,11 @@ export default async function demo({ page, step, chapter, shot, log, args }) {
 ```
 
 - `page`, `context` — Playwright objects; the video is already recording.
-- `step(label, fn)` — runs `fn`, logs the label, holds `--pause` after. Screencast
-  auto-draws the cursor + action title; you don't add those.
+- `step(label, fn)` — runs `fn`, logs the label, holds `--pause` after.
 - `chapter(title, {description, duration})` — full-screen narration card (screencast only).
+- `move(locator | {x,y})` — glide the injected cursor to an element so its travel is
+  visible on camera; `.hover()`/`.click()` also move it. The click pulse fires as the
+  cursor lands. Author flows so the pointer visibly travels — that's what reads as a demo.
 - `shot(name)` — timestamped PNG still alongside the video.
 - Full template: **`flow.example.mjs`** beside this script. Keep each project's
   flow file *in that project's repo* (e.g. a tracked `demo/` dir), not here.
@@ -96,12 +102,17 @@ export default async function demo({ page, step, chapter, shot, log, args }) {
 Design decisions worth keeping:
 
 - **Screencast by default, recordVideo as fallback.** Screencast (Playwright ≥1.59)
-  adds the animated cursor, action titles, and chapter cards and writes straight to
-  our timestamped path. `--basic` uses `recordVideo`, whose file is random-named and
-  flushed only on `context.close()` — the recorder renames it for you either way.
-- **Headed + `slowMo` by default.** A real cursor and realistic timing only appear
-  headed; `slowMo` inserts delay around every action so it's watchable. `--headless`
-  still records video (works in CI) but looks robotic and has no OS cursor.
+  gives action titles + chapter cards and writes straight to our timestamped path.
+  `--basic` uses `recordVideo`, whose file is random-named and flushed only on
+  `context.close()` — the recorder renames it for you either way.
+- **Injected cursor, not the native one.** The recorder injects its own always-visible
+  cursor (arrow + CSS glide + click pulse) instead of screencast's native pointer. The
+  native pointer only appears at discrete actions (so it reads as teleporting) and its
+  red click marker fires at the true point *ahead* of a gliding cursor. The injected one
+  follows the mouse continuously and its pulse is delayed to bloom as the cursor lands.
+  Works headless too (it's just DOM) — so a `--headless` CI recording still shows a cursor.
+- **Headed + `slowMo` by default.** `slowMo` inserts delay around every action so it's
+  watchable; headed also shows real OS chrome. `--headless` still records fine for CI.
 - **Video is WebM only.** Sharing needs MP4/GIF, so `--mp4`/`--gif` transcode with
   the same ffmpeg recipes as demo-media (H.264 `-pix_fmt yuv420p -movflags +faststart`;
   2-pass palette GIF). Video flushes on `stop()`/`context.close()` — read the path after.
@@ -150,8 +161,10 @@ The recorder wires this up when you pass `--scale 2`.
 - **Wait on real signals**, not fixed sleeps: `await expect(locator).toBeVisible()`,
   `page.waitForLoadState('networkidle')`, `locator.waitFor()`. `page.waitForTimeout`
   is acceptable for demo beats but is an anti-pattern for correctness.
-- **On-camera affordances** come free in screencast mode (cursor + action titles).
-  For custom callouts use `page.screencast.showOverlay('<div>…</div>', {duration})`
+- **Make the cursor travel.** The injected cursor + action titles come free, but they
+  only read as a demo if the pointer visibly moves — use `move(locator)` and `.hover()`
+  to glide it and surface hover states before each click, rather than jumping click to
+  click. For custom callouts use `page.screencast.showOverlay('<div>…</div>', {duration})`
   or annotate in post with demo-media/Remotion.
 
 ## → Editing & branding

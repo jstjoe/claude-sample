@@ -10,6 +10,7 @@ demo/
   config.tape      shared VHS look (Catppuccin Mocha, JetBrains Mono, WaitPattern for `$ `)
   tour.tape        VHS terminal tour of this repo's tooling (real commands, deterministic)
   curl-demo.tape   VHS proof it runs a real shell — a live `curl … | jq` over the network
+  colorize.tape    VHS coloring & redaction — raw PII red, [tokens] green, secrets ████ (mutate.sh)
 ```
 
 ## Browser demo (playwright-demos)
@@ -32,11 +33,15 @@ Drop `--headless` for a real window; it defaults to headed.
 ```bash
 vhs demo/tour.tape        # → demo-out/tour.{gif,mp4}   (run from the repo root)
 vhs demo/curl-demo.tape   # → demo-out/curl-demo.gif    (makes a live network call)
+vhs demo/colorize.tape    # → demo-out/colorize.gif     (coloring + redaction, no network)
 ```
 
 Run from the repo root so `Source demo/config.tape` and the `Output demo-out/…`
 paths resolve. `curl-demo.tape` hits a live API, so its output changes run to run —
 for a byte-identical README GIF, point a tape at a fixed fixture instead.
+`colorize.tape` sources [`../skills/vhs-demos/mutate.sh`](../skills/vhs-demos/mutate.sh)
+and pipes output through `hi` / `redact` to highlight PII red, tokens green, and mask
+secrets — VHS captures whatever ANSI the shell prints.
 
 See [`../skills/playwright-demos/SKILL.md`](../skills/playwright-demos/SKILL.md) and
 [`../skills/vhs-demos/SKILL.md`](../skills/vhs-demos/SKILL.md) for the full skill

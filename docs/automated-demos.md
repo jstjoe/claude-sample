@@ -18,6 +18,11 @@ end-to-end flows.
 clip on their own. Send it through **demo-media** to polish or redact, and through
 **Remotion** to add titles and motion.
 
+**Just want to drive it?** The **[make-demos](../skills/make-demos/)** skill is the
+front door — point your agent at it (or say *"I want to make demos"*) and it
+bootstraps the toolchain, then routes to the right skill below and carries these
+recipes. This doc is its long-form companion.
+
 There's also demo-media's `record-demo.sh` — a **live macOS screen recorder** that
 drives a scripted terminal demo on camera. Use it when you need a real desktop
 capture (menus, notifications, multiple apps); use **VHS** when you want a clean,
@@ -137,6 +142,24 @@ magick shot.png -fill black -draw "rectangle 300,220 700,260" safe.png
 The recorders' `--mp4`/`--gif` flags run these for you. See
 **[skills/demo-media/SKILL.md](../skills/demo-media/SKILL.md)** for trimming,
 cropping, speed-ups, annotation, and batch screenshot cleanup.
+
+**Colour at record time (VHS).** Editing after the fact is for finished assets;
+to highlight the important bytes *as the terminal records*, source
+**[vhs-demos/mutate.sh](../skills/vhs-demos/mutate.sh)** in the tape's hidden block
+and pipe output through it — raw PII red, tokens green, secrets masked:
+
+```tape
+Hide
+Type ". mutate.sh" Enter
+Type "export HL_SENSITIVE='Ada Lovelace|555-0100'" Enter
+Show
+Type `curl -s $API/record | jq -r .note | hi` Enter    # PII red, [TOKENS] green
+```
+
+`HL_SENSITIVE`/`HL_TOKENS` are the **same env vars** demo-media's `record-demo.sh`
+uses, so one scenario file colours both recorders identically. Worked example:
+`demo/colorize.tape`. This is record-time colour; the `magick` blur/fill above is
+the unrecoverable, post-hoc redaction for a shipped frame.
 
 ## Brand it (Remotion)
 

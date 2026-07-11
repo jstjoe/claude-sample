@@ -13,7 +13,8 @@ demos without a human at the keyboard.
 
 ```
 skills/            Canonical skill library, symlinked into ~/.claude/skills by install.sh
-  vhs-demos/         Terminal demos → GIF/MP4 from a .tape script (VHS)
+  make-demos/        Front door: bootstrap + route to the recorders + end-to-end recipes
+  vhs-demos/         Terminal demos → GIF/MP4 from a .tape script (VHS); + mutate.sh coloring
   playwright-demos/  Browser demos → video/screenshots (Playwright recorder)
   demo-media/        Edit/convert/redact video + images (ffmpeg, ImageMagick)
   remotion-best-practices/  Branded videos in React (Remotion)
@@ -37,6 +38,9 @@ npm install                         # Playwright + Chromium
 ```
 
 ## ⭐ "I want to make demos" — bootstrap procedure
+
+This procedure also ships as the portable **`make-demos`** skill (so it triggers
+outside this repo). Keep the two in sync when you change the routing.
 
 When a user says they want to **make / record demos** (or record a terminal or
 browser walkthrough, a README GIF, a product demo video) and their environment

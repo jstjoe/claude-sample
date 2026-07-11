@@ -10,8 +10,11 @@ Version-controlled [Claude Code skills](https://docs.claude.com/en/docs/claude-c
 symlinked live via `./install.sh`. See [skills/README.md](skills/README.md) for
 the full list and setup. Currently:
 
+- **make-demos** — the front door: one drivable skill that bootstraps the demo
+  toolchain, then routes to the recorders below and carries the end-to-end recipes.
 - **vhs-demos** — record reproducible terminal demos as GIF/MP4 from a `.tape`
-  script with [VHS](https://github.com/charmbracelet/vhs).
+  script with [VHS](https://github.com/charmbracelet/vhs); colour PII/tokens or
+  redact secrets on camera with `mutate.sh`.
 - **playwright-demos** — drive a real browser to record scripted web-app demos
   (animated cursor + overlays) and capture screenshots, via a turnkey
   `playwright-record.mjs` recorder.

@@ -7,8 +7,9 @@
 #   scripts/bootstrap-demos.sh --check    # verify only, install nothing
 #   scripts/bootstrap-demos.sh --help
 #
-# macOS + Homebrew. Node ≥ 22 must already be present (we don't pick a Node
-# manager for you). Exits non-zero if any verification fails.
+# macOS + Homebrew. Node ≥ 22 and pnpm must already be present (we don't pick a
+# Node manager for you; enable pnpm with 'corepack enable pnpm'). Exits non-zero
+# if any verification fails.
 set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -43,6 +44,11 @@ if ! have node; then
 fi
 NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
 if [ "$NODE_MAJOR" -lt 22 ]; then bad "Node $(node -v) is < 22 — Playwright needs ≥ 22."; else ok "Node $(node -v)"; fi
+if ! have pnpm; then
+  bad "pnpm not found. Enable it with 'corepack enable pnpm' (bundled with Node), or 'brew install pnpm', then re-run."
+  exit 1
+fi
+ok "pnpm $(pnpm --version)"
 
 # ---- install --------------------------------------------------------------
 brew_formula() { brew list --formula "$1" >/dev/null 2>&1 || { info "installing $1…"; brew install "$1"; }; }
@@ -56,8 +62,8 @@ if [ "$CHECK_ONLY" -eq 0 ]; then
   brew_cask     font-jetbrains-mono
   ok "Homebrew tools present"
 
-  info "npm install (Playwright + Chromium via postinstall)…"
-  ( cd "$REPO_DIR" && npm install ) && ok "npm deps + Chromium installed" || bad "npm install failed"
+  info "pnpm install (Playwright + Chromium via postinstall)…"
+  ( cd "$REPO_DIR" && pnpm install ) && ok "pnpm deps + Chromium installed" || bad "pnpm install failed"
 
   info "linking skills (./install.sh)…"
   ( cd "$REPO_DIR" && ./install.sh >/dev/null ) && ok "skills linked into ~/.claude/skills" || bad "install.sh failed"
@@ -77,10 +83,10 @@ ver() {                                   # first line of the tool's version, ff
 for bin in vhs ttyd ffmpeg magick node; do
   if have "$bin"; then ok "$bin — $(ver "$bin")"; else bad "$bin missing"; fi
 done
-if ( cd "$REPO_DIR" && npx --no-install playwright --version >/dev/null 2>&1 ); then
-  ok "playwright — $(cd "$REPO_DIR" && npx --no-install playwright --version)"
+if ( cd "$REPO_DIR" && pnpm exec playwright --version >/dev/null 2>&1 ); then
+  ok "playwright — $(cd "$REPO_DIR" && pnpm exec playwright --version)"
 else
-  bad "playwright not installed (run without --check, or: npm install)"
+  bad "playwright not installed (run without --check, or: pnpm install)"
 fi
 # demo font
 if ls "$HOME/Library/Fonts"/JetBrainsMono* >/dev/null 2>&1 || ls /Library/Fonts/JetBrainsMono* >/dev/null 2>&1; then

@@ -20,7 +20,7 @@
 // states before each click, rather than teleporting from click to click.
 //
 // Author steps by RECORDING them first, then pasting the generated selectors:
-//   npx playwright codegen http://localhost:3000
+//   pnpm exec playwright codegen http://localhost:3000
 // Prefer role/text/label locators (getByRole, getByText, getByLabel) over CSS —
 // they survive restyles and read clearly in the recording.
 

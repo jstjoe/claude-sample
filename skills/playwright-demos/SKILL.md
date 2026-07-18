@@ -30,12 +30,12 @@ Verified against **Playwright 1.61**. Requires **Node ≥ 22**.
 Playwright is already wired into this repo's `package.json`. From the repo root:
 
 ```bash
-npm install                       # installs playwright + (postinstall) Chromium
+pnpm install                      # installs playwright + (postinstall) Chromium
 # or, in another project:
-npm i -D playwright && npx playwright install chromium
+pnpm add -D playwright && pnpm exec playwright install chromium
 ```
 
-The npm package and the browser binaries are **separate installs** — `npm i`
+The playwright package and the browser binaries are **separate installs** — `pnpm add`
 alone does not download a browser. Browsers cache in `~/Library/Caches/ms-playwright`
 (override with `PLAYWRIGHT_BROWSERS_PATH`). On CI add `--with-deps`.
 
@@ -123,16 +123,16 @@ Don't hand-write selectors — **click through the flow and let Playwright emit 
 script**, then paste the locators into your flow file:
 
 ```bash
-npx playwright codegen http://localhost:3000
-npx playwright codegen --viewport-size="1280,800" --output demo/raw.mjs http://localhost:3000
-npx playwright codegen --device="iPhone 15" example.com
+pnpm exec playwright codegen http://localhost:3000
+pnpm exec playwright codegen --viewport-size="1280,800" --output demo/raw.mjs http://localhost:3000
+pnpm exec playwright codegen --device="iPhone 15" example.com
 ```
 
 Auth-gated apps: record once saving storage, then replay it:
 
 ```bash
-npx playwright codegen --save-storage=auth.json https://app.example.com/login   # log in, close
-npx playwright codegen --load-storage=auth.json  https://app.example.com        # already signed in
+pnpm exec playwright codegen --save-storage=auth.json https://app.example.com/login   # log in, close
+pnpm exec playwright codegen --load-storage=auth.json  https://app.example.com        # already signed in
 # in a flow: await browser.newContext({ storageState: 'auth.json' })
 ```
 
@@ -144,8 +144,8 @@ camera and survive restyles.
 
 ```bash
 node skills/playwright-demos/playwright-record.mjs --url https://example.com --shot hero.png --scale 2
-npx playwright screenshot --full-page https://example.com out.png
-npx playwright screenshot --device="iPhone 15" --color-scheme=dark example.com mobile.png
+pnpm exec playwright screenshot --full-page https://example.com out.png
+pnpm exec playwright screenshot --device="iPhone 15" --color-scheme=dark example.com mobile.png
 ```
 
 In a flow: `await page.screenshot({ path, fullPage })`, element shots via
@@ -175,12 +175,12 @@ The recorder wires this up when you pass `--scale 2`.
 
 ## Gotchas
 
-- **Browsers install separately** from the npm package — run `npx playwright install chromium`.
+- **Browsers install separately** from the playwright package — run `pnpm exec playwright install chromium`.
 - **Video flushes late**: `page.screencast.stop()` or `context.close()` writes the
   file; read `page.video().path()` *after* close (the recorder handles this).
 - **Default video size is capped** to an 800×800 box if you don't set `size` — the
   recorder always sets it from `--size`.
 - **WebM only** out of Playwright; transcode for sharing.
 - **`page.video()` is `null`** unless the context enabled recording; one video **per page**.
-- **Trace viewer** (`context.tracing.start(...)` → `npx playwright show-trace trace.zip`)
+- **Trace viewer** (`context.tracing.start(...)` → `pnpm exec playwright show-trace trace.zip`)
   is for *debugging* a flow (DOM/network/timeline), not a clean demo asset.

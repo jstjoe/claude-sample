@@ -47,7 +47,7 @@ brew install vhs
 brew install --cask font-jetbrains-mono
 
 # Browser demos — Playwright + Chromium (from this repo root)
-npm install                 # installs playwright and, via postinstall, the Chromium browser
+pnpm install                # installs playwright and, via postinstall, the Chromium browser
 
 # Editing — ffmpeg + ImageMagick (demo-media)
 brew install ffmpeg imagemagick
@@ -56,7 +56,7 @@ brew install ffmpeg imagemagick
 ./install.sh
 ```
 
-Verify: `vhs --version`, `npx playwright --version`, `ffmpeg -version | head -1`,
+Verify: `vhs --version`, `pnpm exec playwright --version`, `ffmpeg -version | head -1`,
 `magick -version | head -1`.
 
 ## Terminal demo (VHS) — quickstart
@@ -94,7 +94,7 @@ clip + stills.
 
 ```bash
 # 1. author the flow by clicking through it — paste the locators it prints
-npx playwright codegen http://localhost:3000
+pnpm exec playwright codegen http://localhost:3000
 
 # 2. drop them into a flow module (template beside the recorder)
 cp skills/playwright-demos/flow.example.mjs demo/flow.mjs

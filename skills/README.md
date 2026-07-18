@@ -75,7 +75,7 @@ skills fit together and which one to reach for.
 here. Don't hand-edit it — refresh from upstream instead:
 
 ```bash
-npx -y skills@latest add remotion-dev/skills -y   # re-pull latest into ~/.agents/skills
+pnpm dlx skills@latest add remotion-dev/skills -y   # re-pull latest into ~/.agents/skills
 cp -RL ~/.claude/skills/remotion-best-practices skills/   # re-vendor into this repo
 ```
 

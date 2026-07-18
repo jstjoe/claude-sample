@@ -24,7 +24,7 @@ scripts/
   bootstrap-demos.sh  One-shot install + verify of the whole demo toolchain
 .claude/           Project-scoped config for THIS repo (settings, commands, agents, hooks, skills)
 install.sh         Symlinks skills into ~/.claude/skills and skill commands onto PATH
-package.json       Pins Playwright; `npm install` also fetches Chromium (postinstall)
+package.json       Pins Playwright; `pnpm install` also fetches Chromium (postinstall)
 .github/workflows/ Claude GitHub Actions (PR review + @claude)
 ```
 
@@ -34,7 +34,7 @@ package.json       Pins Playwright; `npm install` also fetches Chromium (postins
 ./scripts/bootstrap-demos.sh        # install + verify the demo environment (idempotent)
 ./scripts/bootstrap-demos.sh --check # verify only, install nothing
 ./install.sh                        # (re)link skills after adding one
-npm install                         # Playwright + Chromium
+pnpm install                        # Playwright + Chromium
 ```
 
 ## ⭐ "I want to make demos" — bootstrap procedure
@@ -60,7 +60,7 @@ may not be set up, do this — don't hand them a checklist, run it:
    - **Terminal / CLI** (commands, a TUI, a README GIF) → **vhs-demos**. A `.tape`
      re-renders identically forever; best default for terminal.
    - **Web app / browser UI** → **playwright-demos**. Author the flow with
-     `npx playwright codegen`, then record with `skills/playwright-demos/playwright-record.mjs`.
+     `pnpm exec playwright codegen`, then record with `skills/playwright-demos/playwright-record.mjs`.
    - **Editing / converting / redacting** an existing clip → **demo-media**.
    - **Branded intro/titles/motion** around a capture → **remotion-best-practices**.
 4. **Point them at [`docs/automated-demos.md`](docs/automated-demos.md)** for the

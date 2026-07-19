@@ -10,3 +10,4 @@ demo-out/
 
 # Claude Code — personal, machine-local overrides (never shared)
 .claude/settings.local.json
+.DS_Store

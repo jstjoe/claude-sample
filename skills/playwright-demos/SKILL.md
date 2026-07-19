@@ -56,8 +56,8 @@ node skills/playwright-demos/playwright-record.mjs --help
 ```
 
 By default it records with Playwright's **screencast** API (per-action **title
-overlays** + full-screen **chapter cards**) and injects an **always-visible
-cursor** — an arrow that follows the mouse with a smooth glide and a click pulse,
+overlays** + clean full-screen **chapter cards**, no page blur) and injects an
+**always-visible cursor** — an arrow that follows the mouse with a smooth glide and a click pulse,
 so an automated run reads as narrated. `--basic` falls back to the plain
 `recordVideo` context option (no overlays/cursor). Outputs land in
 `demo-out/<stamp>[-tag].{webm,mp4,gif}` and `demo-out/<stamp>-<name>.png` — never
@@ -68,6 +68,15 @@ Key flags (full list via `--help`): `--size WxH` (viewport + video), `--slowmo m
 title labels linger), `--device NAME` (emulation), `--cursor pointer|none` (the
 injected cursor; `none` hides it), `--scale 2` (retina screenshots), `--headless`,
 `--tag LABEL`, `--mp4`, `--gif`, `--no-webm`.
+
+**Sharp by default.** The screencast captures each frame at `--quality 100` and the
+MP4 transcodes at `--crf 18`, so text and thin lines stay crisp — the bottleneck was
+the default JPEG frame quality, not the encode or the resolution. The chapter card is
+a clean centered overlay with **no full-page backdrop blur**; pass `--chapter-blur` to
+restore Playwright's blurred `showChapter`. Tuning knobs: `--quality 1-100`, `--crf n`
+(lower = sharper/bigger), `--pix-fmt yuv420p|yuv444p` (444 keeps colored edges sharper).
+For GIFs, `--gif-width px` (0 = native, no downscale — default) and `--gif-fps n`
+(default 20) — but **share the MP4** for crisp text; GIF is palette-limited by nature.
 
 ### The flow file (`--flow`)
 

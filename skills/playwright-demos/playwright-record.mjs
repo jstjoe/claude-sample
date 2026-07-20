@@ -41,7 +41,8 @@ import { pathToFileURL } from 'node:url';
 function parseArgs(argv) {
   const a = { out: 'demo-out', size: '1280x800', slowmo: 400, scale: 1, pause: 600,
               headless: false, basic: false, cursor: 'pointer', hold: 1400, mp4: false, gif: false,
-              keepWebm: true, gifWidth: 1000, gifFps: 12 };
+              keepWebm: true, gifWidth: 0, gifFps: 20, quality: 100, crf: 18, pixfmt: 'yuv420p',
+              chapterBlur: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i], next = () => argv[++i];
     switch (k) {
@@ -63,6 +64,12 @@ function parseArgs(argv) {
       case '--mp4':       a.mp4 = true; break;
       case '--gif':       a.gif = true; break;
       case '--no-webm':   a.keepWebm = false; break;       // delete raw .webm after transcode
+      case '--gif-fps':   a.gifFps = +next(); break;       // GIF frame rate (default 20)
+      case '--gif-width': a.gifWidth = +next(); break;     // GIF width px; 0 = native, no downscale (default)
+      case '--quality':   a.quality = +next(); break;      // screencast frame quality 1-100 (default 100)
+      case '--crf':       a.crf = +next(); break;          // H.264 quality, lower = sharper/bigger (default 18)
+      case '--pix-fmt':   a.pixfmt = next(); break;        // yuv420p (compat, default) | yuv444p (sharper color)
+      case '--chapter-blur': a.chapterBlur = true; break;  // use Playwright's blurred full-page chapter card
       case '-h': case '--help': a.help = true; break;
       default: console.error(`Unknown arg: ${k}`); process.exit(2);
     }
@@ -85,8 +92,14 @@ const HELP = `playwright-record.mjs — record a scripted browser demo to video/
   --tag <label>     label appended to output filenames
   --headed|--headless   window on (default) / off (CI)
   --basic           use plain recordVideo (no cursor/action overlays) instead of screencast
+  --quality <1-100> screencast frame quality (default 100 — higher = sharper text/lines)
+  --chapter-blur    use Playwright's blurred full-page chapter card (default: clean, no page blur)
   --mp4             also emit a shareable H.264 MP4 (needs ffmpeg)
+  --crf <n>         MP4 H.264 quality, lower = sharper/bigger (default 18)
+  --pix-fmt <fmt>   MP4 pixel format: yuv420p (compat, default) | yuv444p (sharper colored edges)
   --gif             also emit a 2-pass-palette GIF (needs ffmpeg)
+  --gif-fps <n>     GIF frame rate (default 20)
+  --gif-width <px>  GIF width; 0 = native, no downscale (default). Small README GIF: try 800
   --no-webm         delete the raw .webm after transcoding
 
 Outputs: <out>/<stamp>[-tag].{webm,mp4,gif} and <out>/<stamp>-<name>.png.`;
@@ -103,16 +116,18 @@ function run(bin, args) {
   if (r.status !== 0) throw new Error(`${bin} exited ${r.status}`);
 }
 // webm -> MP4 (H.264, faststart) — the demo-media recipe.
-function toMp4(webm, mp4) {
-  run('ffmpeg', ['-y', '-i', webm, '-vcodec', 'libx264', '-crf', '23', '-preset', 'slow',
-                 '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4]);
+function toMp4(webm, mp4, { crf, pixfmt }) {
+  run('ffmpeg', ['-y', '-i', webm, '-vcodec', 'libx264', '-crf', String(crf), '-preset', 'slow',
+                 '-pix_fmt', pixfmt, '-movflags', '+faststart', mp4]);
 }
-// webm -> GIF (2-pass palette) — the only way to get clean GIFs.
+// webm -> GIF (2-pass palette) — the only way to get clean GIFs. gifWidth 0 = keep
+// native width (no downscale); stats_mode=diff + sierra2_4a dither keep text/lines crisp.
 function toGif(webm, gif, { gifWidth, gifFps }) {
   const pal = gif.replace(/\.gif$/, '.palette.png');
-  run('ffmpeg', ['-y', '-i', webm, '-vf', `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos,palettegen`, pal]);
+  const scale = gifWidth > 0 ? `scale=${gifWidth}:-1:flags=lanczos,` : '';
+  run('ffmpeg', ['-y', '-i', webm, '-vf', `fps=${gifFps},${scale}palettegen=stats_mode=diff`, pal]);
   run('ffmpeg', ['-y', '-i', webm, '-i', pal, '-lavfi',
-                 `fps=${gifFps},scale=${gifWidth}:-1:flags=lanczos,paletteuse`, gif]);
+                 `fps=${gifFps},${scale}paletteuse=dither=sierra2_4a`, gif]);
   rmSync(pal, { force: true });
 }
 
@@ -192,7 +207,7 @@ const CURSOR_SCRIPT = () => {
 
 if (useScreencast) {
   // screencast writes straight to our path; annotate = per-action title overlay.
-  await page.screencast.start({ path: webmPath, size: { width: w, height: h },
+  await page.screencast.start({ path: webmPath, size: { width: w, height: h }, quality: args.quality,
                                 annotate: { position: 'top-right', fontSize: 16, duration: args.hold } });
   // No showActions(): its native red click marker fires at the true mouse point,
   // which leads our gliding cursor and reads as a click before arrival. Titles come
@@ -211,8 +226,26 @@ const step = async (label, fn) => {
 };
 const chapter = async (title, opts = {}) => {
   console.log(`▚  ${title}`);
-  if (useScreencast) await page.screencast.showChapter(title, opts);
-  else await page.waitForTimeout(opts.duration ?? 1500);
+  if (!useScreencast) { await page.waitForTimeout(opts.duration ?? 1500); return; }
+  if (args.chapterBlur) { await page.screencast.showChapter(title, opts); return; }
+  // Default: a clean centered card via showOverlay — NO full-page backdrop blur. Playwright's
+  // showChapter blurs the whole page, which softens every frame under video compression; this
+  // keeps the page behind sharp. Escape the caller's text before injecting it as HTML.
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const dur = opts.duration ?? 2000;
+  const desc = opts.description
+    ? `<div style="margin-top:8px;font-size:18px;font-weight:400;opacity:.82">${esc(opts.description)}</div>` : '';
+  const ov = await page.screencast.showOverlay(`
+    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+      <div style="padding:22px 36px;border-radius:16px;background:rgba(17,17,20,.9);
+        box-shadow:0 14px 44px rgba(0,0,0,.34);text-align:center;color:#fff;
+        font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased">
+        <div style="font-size:30px;font-weight:650;letter-spacing:-.01em">${esc(title)}</div>
+        ${desc}
+      </div>
+    </div>`);
+  await page.waitForTimeout(dur);
+  try { await ov?.dispose(); } catch {}
 };
 const shot = async (name) => {
   const f = join(outDir, `${S}-${name}.png`);
@@ -285,7 +318,7 @@ console.log(`\n🎬  ${webm}`);
 if ((args.mp4 || args.gif) && !have('ffmpeg')) {
   console.error('ffmpeg not found — skipping MP4/GIF. Install: brew install ffmpeg');
 } else {
-  if (args.mp4) { const mp4 = webm.replace(/\.webm$/, '.mp4'); toMp4(webm, mp4); console.log(`🎞  ${mp4}`); }
+  if (args.mp4) { const mp4 = webm.replace(/\.webm$/, '.mp4'); toMp4(webm, mp4, args); console.log(`🎞  ${mp4}`); }
   if (args.gif) { const gif = webm.replace(/\.webm$/, '.gif'); toGif(webm, gif, args); console.log(`🖼  ${gif}`); }
   if (!args.keepWebm && (args.mp4 || args.gif)) { rmSync(webm, { force: true }); console.log(`   (removed raw ${webm})`); }
 }

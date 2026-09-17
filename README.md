@@ -23,6 +23,10 @@ the full list and setup. Currently:
 - **remotion-best-practices** — build branded videos in React with
   [Remotion](https://remotion.dev) and render to MP4. Pairs with demo-media to
   turn a raw screen recording into a polished, titled clip.
+- **writing-for-humans** — rules for writing prose a human can actually read:
+  complete sentences, punctuation that earns its place, and text the reader can
+  act on without looking anything up. Ships with a `UserPromptSubmit` hook that
+  keeps the core rules in front of the agent every turn.
 
 New to this? **[docs/automated-demos.md](docs/automated-demos.md)** is the map —
 which tool to reach for and copy-paste recipes for the common end-to-end flows.

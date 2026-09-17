@@ -25,6 +25,8 @@ skills/
   remotion-best-practices/
     SKILL.md
     rules/
+  writing-for-humans/
+    SKILL.md
 ```
 
 ## Use on a new machine
@@ -67,6 +69,12 @@ skills fit together and which one to reach for.
   animation with `interpolate`/`spring`, scene sequencing, transitions,
   captions, audio, fonts, effects, and dynamic duration. Pairs well with
   **demo-media** — record a raw demo, then wrap it in branded titles/motion.
+
+- **writing-for-humans** — rules for writing prose a human can actually read.
+  It covers sentence structure, punctuation that serves readability, and text the
+  reader can act on without looking anything up. Pairs with the
+  `writing-style.sh` hook in [../hooks/](../hooks/), which injects the short
+  version of the rules into every turn.
 
 ### Vendored skills
 

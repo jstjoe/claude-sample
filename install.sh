@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Symlink every skill in ./skills into ~/.claude/skills so they go live for the
-# local Claude Code install, and expose any executable skill scripts as commands
-# on your PATH. Idempotent: re-running refreshes the links.
+# Symlink every skill in ./skills into ~/.claude/skills and every hook in ./hooks
+# into ~/.claude/hooks so they go live for the local Claude Code install, and
+# expose any executable skill scripts as commands on your PATH. Idempotent:
+# re-running refreshes the links.
 #
 # Usage: ./install.sh            # links skills + commands into ~/.local/bin
 #        BIN=/usr/local/bin ./install.sh   # choose a different command dir
@@ -9,7 +10,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SRC="$REPO_DIR/skills"
+HOOKS_SRC="$REPO_DIR/hooks"
 DEST="$HOME/.claude/skills"
+HOOKS_DEST="$HOME/.claude/hooks"
 BIN="${BIN:-$HOME/.local/bin}"        # where skill commands (e.g. record-demo) land
 
 mkdir -p "$DEST"
@@ -39,6 +42,33 @@ for dir in "$SKILLS_SRC"/*/; do
 done
 
 echo "Done. $linked skill(s) linked into $DEST."
+
+# Link personal hooks into ~/.claude/hooks so they are available in every project.
+# Wiring them up is left to you: a hook runs a shell command on every matching
+# event, so this script never edits your settings.json on your behalf.
+if [ -d "$HOOKS_SRC" ]; then
+  mkdir -p "$HOOKS_DEST"
+  hooks=0
+  for f in "$HOOKS_SRC"/*.sh; do
+    [ -f "$f" ] || continue
+    name="$(basename "$f")"
+    link="$HOOKS_DEST/$name"
+
+    if [ -L "$link" ]; then
+      rm "$link"                     # replace an existing symlink
+    elif [ -e "$link" ]; then
+      echo "SKIP hook $name: a real file already exists at $link — remove it first."
+      continue
+    fi
+
+    ln -s "$f" "$link"
+    echo "linked hook $name -> $f"
+    hooks=$((hooks + 1))
+  done
+  echo "Done. $hooks hook(s) linked into $HOOKS_DEST."
+  echo "NOTE: a linked hook does nothing until you wire it up in ~/.claude/settings.json."
+  echo "      See hooks/README.md for the snippet."
+fi
 
 # Expose executable skill scripts as commands on PATH. A skill can ship a runnable
 # tool (e.g. demo-media/record-demo.sh); we symlink it to BIN as its name minus .sh.

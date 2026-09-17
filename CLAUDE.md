@@ -18,12 +18,14 @@ skills/            Canonical skill library, symlinked into ~/.claude/skills by i
   playwright-demos/  Browser demos → video/screenshots (Playwright recorder)
   demo-media/        Edit/convert/redact video + images (ffmpeg, ImageMagick)
   remotion-best-practices/  Branded videos in React (Remotion)
+  writing-for-humans/       How to write prose a human can read; pairs with hooks/writing-style.sh
+hooks/             Personal hooks, symlinked into ~/.claude/hooks by install.sh (apply everywhere)
 docs/
   automated-demos.md  The map: which demo tool to reach for + end-to-end recipes
 scripts/
   bootstrap-demos.sh  One-shot install + verify of the whole demo toolchain
 .claude/           Project-scoped config for THIS repo (settings, commands, agents, hooks, skills)
-install.sh         Symlinks skills into ~/.claude/skills and skill commands onto PATH
+install.sh         Symlinks skills into ~/.claude/skills, hooks into ~/.claude/hooks, and skill commands onto PATH
 package.json       Pins Playwright; `npm install` also fetches Chromium (postinstall)
 .github/workflows/ Claude GitHub Actions (PR review + @claude)
 ```
@@ -77,6 +79,15 @@ demos," and ends up with a verified toolchain and a first clip — no manual set
   tracks them. `remotion-best-practices` is **vendored** upstream — don't
   hand-edit it (see `skills/README.md` for the refresh command).
 - **`.claude/skills/`** — skills scoped to this repo only, auto-discovered here.
+
+## Hooks: two homes
+
+- **`hooks/`** (top level) — personal hooks symlinked into `~/.claude/hooks/` by
+  `install.sh`, wired up in your global `~/.claude/settings.json`, and active in
+  every project. The installer links them but never edits your settings file,
+  because a hook runs a shell command on every matching event.
+- **`.claude/hooks/`** — hooks scoped to this repo only, wired up in
+  `.claude/settings.json`.
 
 ## Conventions
 

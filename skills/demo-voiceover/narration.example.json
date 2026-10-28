@@ -1,0 +1,13 @@
+{
+  "voice_id": "71bqcK8h3htKuzFJdsMa",
+  "model_id": "eleven_v4",
+  "voice_settings": {"stability": 0.5, "similarity_boost": 0.8, "style": 0.15, "use_speaker_boost": true, "speed": 1.05},
+  "segments": [
+    {"id": "intro", "text": "Meet Skyflow for Amazon Bedrock AgentCore Gateway."},
+    {"id": "diagram", "text": "Agents are only as capable as their tools, and those tools often handle sensitive data. Skyflow plugs into AgentCore Gateway to protect every tool call, with no changes to your agents or tools."},
+    {"id": "before", "text": "Take documents for example: agents pull case notes, statements and contracts from storage like Amazon S3. Without Skyflow, retrieving a sensitive document exposes regulated data to the agent and exposes your business to unnecessary risk."},
+    {"id": "chat", "text": "With Skyflow, the agent requests the file just as it always has. Skyflow de-identifies the document in flight, replacing every piece of sensitive data with non-sensitive, deterministic tokens."},
+    {"id": "after", "text": "The agent only ever sees this clean copy. The layout and context stay intact, so it can still do its job. And authorized users — and agents when permitted — can restore the real values through Skyflow."},
+    {"id": "outro", "text": "Together, Skyflow and AgentCore Gateway keep your private data private and your agents productive."}
+  ]
+}

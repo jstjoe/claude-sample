@@ -22,6 +22,15 @@ skills/
     flow.example.mjs
   demo-media/
     SKILL.md
+    record-demo.sh
+    ocr_boxes.swift
+    fit_boxes.py
+    warp.swift
+  demo-voiceover/
+    SKILL.md
+    voiceover_take.py
+    lay_narration.py
+    narration.example.json
   remotion-best-practices/
     SKILL.md
     rules/
@@ -62,6 +71,9 @@ skills fit together and which one to reach for.
 - **demo-media** — record, edit, compress, and annotate demo videos and
   screenshots with ffmpeg and ImageMagick (GIFs, MP4 compression, cropping,
   annotation, PII redaction).
+- **demo-voiceover** — write and generate narration for a finished cut. It uses
+  Joe's cloned ElevenLabs voice as one continuous `eleven_v4` take, splits it at the
+  real pauses between scenes and lays it over the video at an even loudness.
 - **remotion-best-practices** — domain knowledge for building videos in
   React/TypeScript with [Remotion](https://remotion.dev) and rendering to MP4:
   animation with `interpolate`/`spring`, scene sequencing, transitions,

@@ -8,7 +8,11 @@ description: >
   regions (PII, tokens, secrets) in demo assets, or build a repeatable
   recording/screenshotting pipeline. Ships a turnkey macOS recorder
   (record-demo.sh) that screen-records, drives a scripted demo, and emits a
-  timestamped MP4 + GIF. Triggers on: "screen recording", "record a demo",
+  timestamped MP4 + GIF. Also covers recording a native Mac app such as
+  Microsoft Word with screencapture and AppleScript, and highlighting values
+  in a captured document with OCR boxes and a push-in zoom (ocr_boxes.swift,
+  fit_boxes.py, warp.swift). Triggers on: "screen recording", "record a demo",
+  "record Word", "show the file in an app", "highlight values in the document",
   "self-driving demo", "record-demo.sh", "make a GIF", "screenshot workflow",
   "compress video", "trim clip", "crop recording", "annotate screenshot",
   "redact/blur screenshot", "encode/prep a recording for Remotion", "ffmpeg",
@@ -215,6 +219,105 @@ magick shot.png -fill black -draw "rectangle 300,220 700,260" redacted.png
 magick shot.png -trim +repage -strip -bordercolor white -border 20 clean.png
 ```
 `-strip` removes EXIF — do this before committing images to a repo.
+
+### Shrink a screenshot for embedding in a doc — 256-colour PNG
+```bash
+magick figure.png -resize 1600x -dither None -colors 256 -define png:compression-level=9 PNG8:figure-1600.png
+```
+Screenshots of text survive a 256-colour palette. A 1600-pixel blog figure
+went from 320 KB to 100 KB at 50 dB PSNR with no visible change. Use this
+before base64-embedding an image in a Markdown or Google Docs export.
+
+## Native desktop app scenes (Word, Excel, any Mac app)
+
+Use this when the demo needs a real document in a real app, for example the
+file an agent fetched opening in Microsoft Word. It takes over the screen, so
+**ask the person for the screen first** and batch every desktop take into one
+short run. Everything else in the video can record headless.
+
+```bash
+osascript -e 'with timeout of 15 seconds
+tell application "Microsoft Word" to quit saving no
+end timeout'                                   # start clean; closing single documents by script hangs
+open -a "Microsoft Word" case-file.docx; sleep 5
+osascript -e 'with timeout of 20 seconds
+tell application "Microsoft Word"
+  activate
+  set bounds of active window to {0, 38, 1440, 848}
+  set percentage of zoom of view of active window to 110
+end tell
+end timeout'
+swiftc -O -o warp warp.swift && ./warp 1300 12   # park the pointer on the menu bar
+screencapture -x -v -V 8 -R 0,38,1440,810 word-before.mov   # 8 s of the window, no sound
+```
+
+1. **`screencapture -v` records at retina 2x** with a variable frame rate. A
+   1440-point region comes out 2880 pixels wide. Add `fps=30` in the edit.
+   Frames only arrive when the screen changes, so 8 seconds of a still window
+   came out 2.95 seconds long. Hold the last frame with `tpad` to fill the scene.
+2. **It will not overwrite.** An existing output file fails with "Failed to save
+   to final location". Move the old take aside first.
+3. **The pointer is recorded.** `warp.swift` moves it out of the region and
+   needs no permissions. The person cannot park it while they type "go".
+4. **Unactivated Word shows a "View Only" banner on every window.** Opening a
+   warm-up document first does not help. Paint the banner's rows over with the
+   ribbon colour in the edit instead (see below). Word still opens and shows
+   files without activation.
+5. **Wrap every `osascript` in `with timeout`.** macOS has no `timeout`
+   command, and the first run waits on an automation permission prompt.
+6. **Generate the document so it looks real.** A `python-docx` file with
+   tables, dated notes and a realistic name reads as a real workflow. Set
+   `w:noProof` on the Normal style to hide spelling squiggles and set
+   compatibility mode 15 to keep Word out of Compatibility Mode.
+
+## Highlight values in a captured document
+
+Pink boxes that land one after another on each sensitive value, with a slow
+push-in so small text becomes readable. The same boxes on the "after" take show
+the tokens that replaced them.
+
+```bash
+ffmpeg -v error -i word-before.mov -update 1 before-full.png        # the last frame
+swift ocr_boxes.swift before-full.png values "Daniel Okonkwo|daniel@example.com" > before-boxes.raw.json
+swift ocr_boxes.swift after-full.png tokens > after-boxes.raw.json
+uv run --with pillow python fit_boxes.py before-full.png before-boxes.raw.json > before-boxes.json
+```
+
+1. **OCR boxes drift vertically.** Vision's boxes were up to 7 pixels off and
+   some were 42 pixels tall in rows 33 pixels apart. `fit_boxes.py` recentres
+   each box on the ink it covers. Then draw every box at one fixed height of
+   about 90 percent of the line pitch so no outline crosses the next row.
+2. **OCR misreads brackets and underscores** as `I`, `l` or a space. The
+   `tokens` mode matches loosely for that reason.
+3. **Draw a light fill plus a thin outline** such as the brand pink at 18
+   percent and a 3-pixel edge. Heavy boxes hid the small text.
+4. **Push in with eased zoompan** from the full window to the content region:
+
+```bash
+# p runs 0 to 1 between 1.2 s and 2.8 s; e is smoothstep; z goes from 1 to 2880/1300
+P="clip((on/30-1.2)/1.6,0,1)"; E="($P*$P*(3-2*$P))"
+ffmpeg -v error -y -i word-before.mov -vf "fps=30,\
+drawbox=x=0:y=288:w=iw:h=56:color=white:t=fill,\
+drawbox=x=1200:y=1035:w=190:h=30:color=0xE7157B@0.18:t=fill:enable='gte(t,3.1)',\
+drawbox=x=1200:y=1035:w=190:h=30:color=0xE7157B:t=3:enable='gte(t,3.1)',\
+zoompan=z='1+1.2154*$E':x='(iw/2+(1320-iw/2)*$E)-iw/zoom/2':y='(ih/2+(1130-ih/2)*$E)-ih/zoom/2':d=1:s=1920x1080:fps=30" \
+  -c:v libx264 -crf 18 -pix_fmt yuv420p before-scene.mp4
+```
+
+The first `drawbox` is the banner paint-out. Draw boxes at the source
+resolution before `zoompan` so they scale with the page. Stagger each box's
+`enable` time by about 0.35 seconds.
+
+5. **Hold the last frame** to fit narration: `tpad=stop_mode=clone:stop_duration=6`.
+6. **Overlay a still PNG for the whole clip** with `-loop 1 -t <seconds> -i label.png`.
+   A single-frame PNG input with a fade stays transparent.
+7. **Put captions in a full-width opaque bar** along the bottom edge. A corner
+   pill over a document always covers some text. Make the bar fully opaque
+   because text behind a 90 percent bar still shows through.
+8. **Build the blog figure from the same frames** so the figure and the video
+   show the same document. Crop the page region from both frames, draw the
+   fitted boxes and set the crops side by side under "Stored in Amazon S3" and
+   "What the agent receives" style headers.
 
 ## Pipeline recipes worth scripting
 

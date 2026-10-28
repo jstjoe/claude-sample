@@ -5,13 +5,14 @@ description: >
   scripted, reproducible terminal and browser walkthroughs, GIFs, and polished
   videos. Use this to DRIVE the whole pipeline: it sets up the toolchain, then
   routes to the right component skill (vhs-demos for terminal, playwright-demos
-  for browser, demo-media for editing/redaction, remotion-best-practices for
-  branding) and carries the end-to-end recipes. Start here when the user says
-  they want to make/record a demo but you don't yet know terminal vs browser, or
-  when a demo spans record → edit → brand. Triggers on: "make a demo", "record a
-  demo", "demo video", "product walkthrough", "record my terminal / CLI / app",
-  "record a browser demo", "README GIF", "screen recording", "demo GIF",
-  "set up demo recording", "I want to make demos".
+  for browser, demo-media for editing/redaction and native-app scenes,
+  demo-voiceover for narration, remotion-best-practices for branding) and
+  carries the end-to-end recipes. Start here when the user says they want to
+  make/record a demo but you don't yet know terminal vs browser, or when a demo
+  spans record → edit → narrate → brand. Triggers on: "make a demo", "record a
+  demo", "demo video", "product walkthrough", "launch video", "narrated demo",
+  "record my terminal / CLI / app", "record a browser demo", "README GIF",
+  "screen recording", "demo GIF", "set up demo recording", "I want to make demos".
 metadata:
   tags: demo, recording, screencast, gif, video, vhs, playwright, ffmpeg, remotion, pipeline
 ---
@@ -50,6 +51,8 @@ Relay its final summary. On failure, fix the named prerequisite and re-run:
 | **Terminal / CLI** → GIF/MP4 from a `.tape` | **vhs-demos** | commands, a TUI, a README GIF — anything terminal that must re-render identically. **Best default for terminal.** |
 | **Browser / web UI** → video + screenshots | **playwright-demos** | web-app tours, UI walkthroughs, marketing/docs screenshots |
 | **Live macOS desktop** → MP4/GIF | **demo-media** (`record-demo.sh`) | you truly need the real desktop: menus, notifications, multiple apps |
+| **A native app showing a file** → MP4 | **demo-media** (native desktop app scenes) | the file an agent fetched should open in Word or another real app |
+| **Narration** over a finished cut | **demo-voiceover** | a launch or marketing video needs a voice track |
 
 **Rule of thumb:** *terminal → VHS, browser → Playwright, real desktop → record-demo.sh.*
 VHS/Playwright re-render on demand and stay in sync with the product; the live
@@ -84,7 +87,19 @@ node skills/playwright-demos/playwright-record.mjs --flow demo/flow.mjs --mp4 --
 # Polished launch video — Playwright → demo-media → Remotion
 node skills/playwright-demos/playwright-record.mjs --flow demo/flow.mjs   # raw .webm
 #   → transcode a Studio-friendly copy (demo-media) → build titled Remotion comp → render
+
+# Narrated product video with a real app — Playwright + desktop app + voiceover
+#   1. chat or web scene headless with a saved session (playwright-demos)
+#   2. Word scenes with screencapture after the person frees the screen (demo-media)
+#   3. OCR highlights + push-in + caption bars, cut with ffmpeg (demo-media)
+#   4. one eleven_v4 take split per scene, laid over the cut (demo-voiceover)
+python3 skills/demo-voiceover/voiceover_take.py demo/narration.json demo-out/audio/v4
 ```
+
+The October 2026 Skyflow launch video followed the last recipe end to end. Its
+project-specific scripts live in the agentcore-skyflow checkout's gitignored
+`demo-out/ui-cut-scripts/` directory. The reusable parts are in demo-media and
+demo-voiceover.
 
 Full decision table, flag references, and recipes:
 **[docs/automated-demos.md](../../docs/automated-demos.md)**. Deep dives live in each
@@ -101,3 +116,11 @@ component skill's `SKILL.md`.
   demo-media — before anything leaves the machine.
 - **Keep the demo script in the demoed project.** The `.tape` / `flow.mjs` lives in
   that repo's `demo/` dir; these skills stay generic and reusable.
+- **Ask before taking over the screen.** Anything that records the real desktop or
+  moves the pointer interrupts the person. Record everything else headless and batch
+  the screen takes into one short run once they say the screen is free.
+- **Check audio by measurement.** The agent cannot hear the narration. Measure the
+  gaps, onsets and loudness (demo-voiceover) and ask the person to listen for named
+  words.
+- **Cut silent first, narrate second.** Review the picture and the on-screen text as
+  a silent cut, then write the narration against its real timings.

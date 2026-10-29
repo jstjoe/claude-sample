@@ -3,7 +3,7 @@
 A practical guide to recording developer demos **without a human at the
 keyboard** — scripted, reproducible, and re-runnable when the product changes.
 
-This repo ships four skills that cover the whole pipeline. This guide is the map:
+This repo ships five skills that cover the whole pipeline. This guide is the map:
 what each one is for, how they fit together, and copy-paste recipes for the common
 end-to-end flows.
 
@@ -11,7 +11,8 @@ end-to-end flows.
 |---|---|---|
 | **[vhs-demos](../skills/vhs-demos/)** | **Terminal** sessions → GIF/MP4/WebM, from a `.tape` script | CLI walkthroughs, README GIFs, anything terminal that must re-render identically |
 | **[playwright-demos](../skills/playwright-demos/)** | **Browser** sessions → WebM (+MP4/GIF), from a scripted flow; screenshots | Web-app tours, UI walkthroughs, marketing/docs screenshots |
-| **[demo-media](../skills/demo-media/)** | **Edits** video/images with ffmpeg + ImageMagick; a live-screen recorder | Trim/crop/speed/compress, convert WebM→MP4/GIF, annotate, **redact PII** |
+| **[demo-media](../skills/demo-media/)** | **Edits** video/images with ffmpeg + ImageMagick; a live-screen recorder; native-app scenes | Trim/crop/speed/compress, convert WebM→MP4/GIF, annotate, **redact PII**, show a file in Word with highlighted values |
+| **[demo-voiceover](../skills/demo-voiceover/)** | **Narrates** a finished cut with ElevenLabs | Launch and marketing videos that need a voice track |
 | **[remotion-best-practices](../skills/remotion-best-practices/)** | **Brands** a recording in React → titled MP4 | Intro cards, brand colors, captions, transitions around a raw capture |
 
 **Rule of thumb:** *terminal → VHS, browser → Playwright.* Both emit a shareable
@@ -191,6 +192,18 @@ ffmpeg -i demo-out/<stamp>.webm -vf "scale=-2:1080:flags=lanczos" \
 # then build the titled composition in Remotion and render to MP4
 ```
 
+**Narrated product video with a real app** — Playwright + demo-media + demo-voiceover:
+```bash
+# 1. the web or chat scene, headless, with a session the person saved once
+node demo/record-chat.mjs demo-out/run          # the project's own recorder; see playwright-demos "Apps behind a sign-in"
+# 2. the native-app scenes, after the person frees the screen
+screencapture -x -v -V 8 -R 0,38,1440,810 demo-out/run/word-before.mov
+# 3. highlight boxes, push-in and caption bars, cut silent first (demo-media)
+# 4. narration as one eleven_v4 take, split per scene and laid over the cut
+python3 skills/demo-voiceover/voiceover_take.py demo/narration.json demo-out/run/audio
+python3 skills/demo-voiceover/lay_narration.py demo-out/run/cut.mp4 demo-out/run/narrated.mp4 1.5:demo-out/run/audio/intro.mp3
+```
+
 **Retina screenshots for docs** — Playwright, no video:
 ```bash
 node skills/playwright-demos/playwright-record.mjs --url https://app.local --shot hero.png --scale 2
@@ -209,3 +222,7 @@ node skills/playwright-demos/playwright-record.mjs --url https://app.local --sho
   screenshots, before anything leaves your machine.
 - **Keep the demo script in the demoed project.** The `.tape` / `flow.mjs` lives in
   that repo's `demo/` dir; these skills stay generic and reusable across projects.
+- **Ask before taking over the screen.** Record everything you can headless and batch
+  the desktop takes into one short run once the person says the screen is free.
+- **Narrate the value, not the screen.** See demo-voiceover for the narration style
+  that worked and for checking audio by measurement.

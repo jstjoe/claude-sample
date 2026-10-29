@@ -9,7 +9,8 @@ description: >
   Ships a turnkey recorder (playwright-record.mjs) that launches Chromium,
   records the session with an animated cursor + action/chapter overlays via the
   screencast API, runs a scripted flow you supply, and emits a timestamped
-  webm/mp4/gif + PNG stills. Triggers on: "record a browser demo", "Playwright",
+  webm/mp4/gif + PNG stills. Also covers recording apps behind a sign-in you
+  cannot script and recording an AI agent's chat. Triggers on: "record a browser demo", "Playwright",
   "playwright-record", "screencast", "codegen", "record web app", "browser
   screenshot", "automate the browser", "screen record a website", "demo a web UI".
 metadata:
@@ -193,3 +194,46 @@ The recorder wires this up when you pass `--scale 2`.
 - **`page.video()` is `null`** unless the context enabled recording; one video **per page**.
 - **Trace viewer** (`context.tracing.start(...)` → `npx playwright show-trace trace.zip`)
   is for *debugging* a flow (DOM/network/timeline), not a clean demo asset.
+- **Record the screencast at `deviceScaleFactor: 1`.** At 4/3 the screencast frame
+  size jumped partway through a take. Record a 1440×810 viewport at scale 1 and
+  upscale to 1920×1080 in the edit.
+
+## Apps behind a sign-in you cannot script
+
+Hosted sign-in pages such as Cognito's often cannot be automated and should not
+appear in a marketing cut. Have the person sign in once in a headed browser, save
+the session, then record headless with it.
+
+```js
+// save-session.mjs: headed, waits for the person, then saves cookies + localStorage
+await page.goto(url);
+await page.getByPlaceholder('Type your message…').waitFor({ timeout: 20 * 60_000 });
+await context.storageState({ path: 'demo-out/session.json' });
+```
+
+1. **The saved file holds live tokens.** Keep it under a gitignored `demo-out/` and
+   delete it as soon as the takes are done.
+2. **Reuse the session on a local build.** Amplify and Cognito keep their tokens in
+   `localStorage`, which is per origin. Copy the file, change its `origins[0].origin`
+   to `http://localhost:5173` and the same tokens sign in to a patched local copy of
+   the app. This is how to re-record against an unmerged UI fix.
+3. **A headless browser shows no pointer.** Inject one with an init script (the
+   recorder's cursor does this) and glide it to each target before clicking.
+4. **Catch the file a link serves.** Create the context with `acceptDownloads: true`,
+   start `page.waitForEvent('download')` before the click, then `saveAs()` it. A
+   desktop-app scene can then open exactly what the viewer downloaded (see demo-media).
+
+## Recording an AI agent's chat
+
+1. **Record several takes and pick one.** The agent's wording changed every take.
+   Some takes repeated a sentence or gave two different expiry times in one reply.
+   Takes run headless, so record two or three in parallel.
+2. **Write markers while recording** (`sent`, `first_output`, `done`, `clicked`) to a
+   JSON file. The edit then plays typing at real speed, the wait at 6× speed and the
+   answer at real speed without guessing timestamps.
+3. **Leave speed badges out of marketing cuts.** Viewers assume the wait was cut.
+4. **Name the location in the prompt.** "From the disputes folder" stopped the agent
+   from returning an older file that had the same case number.
+5. **Look for UI bugs in the answer.** Text from either side of a tool call ran
+   together ("Found it.I found…") until the client started a new paragraph at each
+   new model message.

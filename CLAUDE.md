@@ -16,7 +16,8 @@ skills/            Canonical skill library, symlinked into ~/.claude/skills by i
   make-demos/        Front door: bootstrap + route to the recorders + end-to-end recipes
   vhs-demos/         Terminal demos → GIF/MP4 from a .tape script (VHS); + mutate.sh coloring
   playwright-demos/  Browser demos → video/screenshots (Playwright recorder)
-  demo-media/        Edit/convert/redact video + images (ffmpeg, ImageMagick)
+  demo-media/        Edit/convert/redact video + images (ffmpeg, ImageMagick); native-app scenes + OCR highlights
+  demo-voiceover/    Narration: writing style, one-take ElevenLabs eleven_v4 generation, mixing
   remotion-best-practices/  Branded videos in React (Remotion)
 docs/
   automated-demos.md  The map: which demo tool to reach for + end-to-end recipes
@@ -63,6 +64,7 @@ may not be set up, do this — don't hand them a checklist, run it:
      `npx playwright codegen`, then record with `skills/playwright-demos/playwright-record.mjs`.
    - **Editing / converting / redacting** an existing clip → **demo-media**.
    - **Branded intro/titles/motion** around a capture → **remotion-best-practices**.
+   - **Narration** over a finished cut → **demo-voiceover**.
 4. **Point them at [`docs/automated-demos.md`](docs/automated-demos.md)** for the
    decision table and copy-paste recipes, and keep each project's `.tape` /
    `flow.mjs` **in that project's repo** (a tracked `demo/` dir), not here.
